@@ -4,7 +4,7 @@ import com.clipshare.auth.AppUserPrincipal;
 import com.clipshare.clip.dto.ClipDetailResponse;
 import com.clipshare.clip.dto.ClipUploadResponse;
 import com.clipshare.clip.dto.ExternalCaptureMetadata;
-import com.clipshare.clip.dto.PageResponse;
+import com.clipshare.common.dto.PageResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;

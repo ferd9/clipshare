@@ -1,4 +1,4 @@
-package com.clipshare.clip.dto;
+package com.clipshare.common.dto;
 
 import org.springframework.data.domain.Page;
 

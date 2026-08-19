@@ -784,7 +784,12 @@ Para Facebook e Instagram, implementar el resolver como stub (`FacebookEmbedReso
 - Login devuelve JWT de acceso de corta duración (ej. 15-30 min) + refresh token de larga duración persistido (hasheado) en `refresh_tokens`, para poder revocar sesiones (logout, baneo, "cerrar sesión en todos los dispositivos").
 - Con `email_verified_at` sin completar, la cuenta igual puede publicar clips (`/api/clips/upload` y `/api/clips/from-capture`), pero limitada a 3 por día (ventana de 24h, contador en Redis compartido entre ambos endpoints) — devuelven 429 al superarla. Sin este límite, una cuenta desechable sin verificar podría usarse para spam/abuso a volumen; con él, sigue sirviendo para probar el producto sin fricción pero acota el daño. Verificar el email levanta el límite.
 - Middleware de Spring Security protege todos los endpoints salvo `/api/auth/**`, `/api/clips/feed`, `/api/clips/{id}` (GET), `/api/reports` (POST) y `/legal/**`.
-- Rol vía `users.role` (`USER` | `MODERATOR` | `ADMIN`, enum en la base de datos) para endpoints de moderación.
+- Rol vía `users.role` (`USER` | `MODERATOR` | `ADMIN`, enum en la base de datos) para endpoints de moderación (`/api/admin/**`, Fase 5).
+
+> Nota de implementación (Fase 5): a propósito no existe ningún endpoint para auto-promoverse a `ADMIN`/`MODERATOR` (sería una superficie de escalación de privilegios). Para el primer admin en dev/local, promoverlo a mano en la base:
+> ```sql
+> UPDATE users SET role = 'ADMIN' WHERE email = 'vos@example.com';
+> ```
 
 ---
 

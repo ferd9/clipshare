@@ -22,6 +22,9 @@ export function Nav() {
             <>
               <Link to="/upload">Subir clip</Link>
               <Link to="/import">Importar link</Link>
+              {(user.role === 'ADMIN' || user.role === 'MODERATOR') && (
+                <Link to="/admin/reports">Admin</Link>
+              )}
               <span className="app-nav-user">{user.displayName}</span>
               <button type="button" onClick={() => void handleLogout()}>
                 Cerrar sesión

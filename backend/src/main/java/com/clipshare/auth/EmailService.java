@@ -1,5 +1,7 @@
 package com.clipshare.auth;
 
+import java.util.UUID;
+
 /**
  * Interfaz reemplazable: en dev local no hay proveedor SMTP configurado, así que la
  * implementación por defecto solo loguea el link. En producción (ver docs/SPEC.md
@@ -11,4 +13,7 @@ public interface EmailService {
     void sendVerificationEmail(String toEmail, String verificationToken);
 
     void sendPasswordResetEmail(String toEmail, String resetToken);
+
+    /** Flujo de notice-and-takedown (docs/SPEC.md sección 2): notificación al usuario autor. */
+    void sendTakedownNotice(String toEmail, UUID clipId, String reason);
 }

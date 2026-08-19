@@ -52,6 +52,27 @@
   margin-top: 3rem;
 }
 
+.clip-feed-more {
+  display: flex;
+  justify-content: center;
+  padding: 0 1.5rem 2rem;
+}
+
+.clip-feed-more button {
+  padding: 0.6rem 1.5rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.clip-feed-more button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .clips-error {
   color: #fca5a5;
 }

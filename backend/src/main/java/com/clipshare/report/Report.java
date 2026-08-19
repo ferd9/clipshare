@@ -100,12 +100,40 @@ public class Report {
         return reason;
     }
 
+    public String getReporterName() {
+        return reporterName;
+    }
+
+    public String getReporterEmail() {
+        return reporterEmail;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
     public ReportStatus getStatus() {
         return status;
     }
 
     public void setStatus(ReportStatus status) {
         this.status = status;
+    }
+
+    public User getResolvedBy() {
+        return resolvedBy;
+    }
+
+    public void setResolvedBy(User resolvedBy) {
+        this.resolvedBy = resolvedBy;
+    }
+
+    public Instant getResolvedAt() {
+        return resolvedAt;
+    }
+
+    public void setResolvedAt(Instant resolvedAt) {
+        this.resolvedAt = resolvedAt;
     }
 
     public Instant getCreatedAt() {

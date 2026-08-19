@@ -9,6 +9,8 @@ import { UploadOwnClip } from './clips/UploadOwnClip';
 import { ImportFromLink } from './clips/ImportFromLink';
 import { DmcaPage } from './legal/DmcaPage';
 import { ReportForm } from './legal/ReportForm';
+import { AdminRoute } from './admin/AdminRoute';
+import { AdminReportsPage } from './admin/AdminReportsPage';
 
 function App() {
   return (
@@ -24,6 +26,9 @@ function App() {
             <Route element={<ProtectedRoute />}>
               <Route path="/upload" element={<UploadOwnClip />} />
               <Route path="/import" element={<ImportFromLink />} />
+            </Route>
+            <Route element={<AdminRoute />}>
+              <Route path="/admin/reports" element={<AdminReportsPage />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

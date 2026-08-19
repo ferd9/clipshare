@@ -1,14 +1,26 @@
 package com.clipshare.report;
 
+import com.clipshare.auth.EmailService;
 import com.clipshare.clip.Clip;
 import com.clipshare.clip.ClipRepository;
+import com.clipshare.clip.ModerationStatus;
 import com.clipshare.config.ApiException;
+import com.clipshare.moderation.NcmecReportClient;
+import com.clipshare.moderation.StrikeReason;
+import com.clipshare.moderation.StrikeService;
 import com.clipshare.report.dto.CounterNoticeRequest;
 import com.clipshare.report.dto.CreateReportRequest;
+import com.clipshare.storage.StorageService;
 import com.clipshare.user.User;
+import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -17,24 +29,34 @@ import java.util.UUID;
 
 /**
  * Flujo de notice-and-takedown (docs/SPEC.md secciones 2 y 8): crear un reporte es público
- * (no requiere sesión, solo un email de contacto); la contra-notificación sí requiere ser el
- * dueño del clip reportado. Resolver el reporte (acción de un admin/moderador que puede
- * generar un strike) es Fase 5 — acá solo se registra la entrada del flujo.
+ * (no requiere sesión, solo un email de contacto); la contra-notificación requiere ser el
+ * dueño del clip reportado; resolverlo (Fase 5) requiere rol ADMIN/MODERATOR — ver
+ * SecurityConfig y AdminReportController.
  */
 @Service
 public class ReportService {
 
     private static final int COUNTER_NOTICE_BUSINESS_DAYS = 10;
+    private static final int MAX_PAGE_SIZE = 50;
 
     private final ReportRepository reportRepository;
     private final ClipRepository clipRepository;
     private final DmcaCounterNoticeRepository counterNoticeRepository;
+    private final StrikeService strikeService;
+    private final NcmecReportClient ncmecReportClient;
+    private final StorageService storageService;
+    private final EmailService emailService;
 
     public ReportService(ReportRepository reportRepository, ClipRepository clipRepository,
-                          DmcaCounterNoticeRepository counterNoticeRepository) {
+                          DmcaCounterNoticeRepository counterNoticeRepository, StrikeService strikeService,
+                          NcmecReportClient ncmecReportClient, StorageService storageService, EmailService emailService) {
         this.reportRepository = reportRepository;
         this.clipRepository = clipRepository;
         this.counterNoticeRepository = counterNoticeRepository;
+        this.strikeService = strikeService;
+        this.ncmecReportClient = ncmecReportClient;
+        this.storageService = storageService;
+        this.emailService = emailService;
     }
 
     @Transactional
@@ -84,6 +106,74 @@ public class ReportService {
 
         report.setStatus(ReportStatus.UNDER_REVIEW);
         return notice;
+    }
+
+    // ---- Admin (docs/SPEC.md sección 14, Fase 5) ----
+
+    public Page<Report> getPendingReports(int page, int size) {
+        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), MAX_PAGE_SIZE),
+                Sort.by(Sort.Direction.ASC, "createdAt")); // los más viejos primero: cola FIFO
+        return reportRepository.findPending(pageable);
+    }
+
+    /**
+     * CONFIRMED: retira el clip (moderation_status = TAKEN_DOWN — no se borra el archivo,
+     * se retiene por si hay contra-notificación exitosa, ver docs/SPEC.md V2) y aplica un
+     * strike al dueño. Un reporte de CSAM confirmado por revisión manual sigue el mismo
+     * camino que el pipeline automático (Fase 4): baneo inmediato, reporte a NCMEC y borrado
+     * real del archivo — con CSAM nunca se retiene el contenido, ni siquiera para una
+     * eventual disputa. DISMISSED: no toca el clip ni al dueño.
+     */
+    @Transactional
+    public Report resolveReport(UUID reportId, User admin, ReportAction action) {
+        Report report = reportRepository.findByIdWithClip(reportId)
+                .orElseThrow(() -> ApiException.notFound("REPORT_NOT_FOUND", "Reporte no encontrado"));
+
+        if (report.getStatus() == ReportStatus.DISMISSED || report.getStatus() == ReportStatus.ACTIONED) {
+            throw ApiException.badRequest("REPORT_ALREADY_RESOLVED", "Este reporte ya fue resuelto");
+        }
+
+        report.setResolvedBy(admin);
+        report.setResolvedAt(Instant.now());
+
+        if (action == ReportAction.DISMISSED) {
+            report.setStatus(ReportStatus.DISMISSED);
+            return report;
+        }
+
+        report.setStatus(ReportStatus.ACTIONED);
+        Clip clip = report.getClip();
+        clip.setModerationStatus(ModerationStatus.TAKEN_DOWN);
+        User owner = clip.getOwner();
+
+        if (report.getReason() == ReportReason.CSAM) {
+            strikeService.recordCsamStrike(owner, report.getId());
+            ncmecReportClient.report(clip.getId(), "MANUAL_REVIEW");
+            deleteClipFiles(clip);
+        } else {
+            strikeService.recordStandardStrike(owner, mapToStrikeReason(report.getReason()), report.getId());
+        }
+
+        emailService.sendTakedownNotice(owner.getEmail(), clip.getId(), report.getReason().name());
+        return report;
+    }
+
+    private StrikeReason mapToStrikeReason(ReportReason reason) {
+        return switch (reason) {
+            case COPYRIGHT_DMCA -> StrikeReason.DMCA_CONFIRMED;
+            case HARASSMENT -> StrikeReason.HARASSMENT;
+            case OTHER, CSAM -> StrikeReason.OTHER; // CSAM real nunca llega acá, ver resolveReport
+        };
+    }
+
+    /** CSAM nunca se retiene, ni siquiera el ya publicado — a diferencia de un DMCA confirmado. */
+    private void deleteClipFiles(Clip clip) {
+        try {
+            if (clip.getFilePath() != null) storageService.delete(clip.getFilePath());
+            if (clip.getThumbnailPath() != null) storageService.delete(clip.getThumbnailPath());
+        } catch (IOException e) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "STORAGE_ERROR", "No se pudo borrar el archivo del clip");
+        }
     }
 
     private Instant addBusinessDays(Instant start, int businessDays) {

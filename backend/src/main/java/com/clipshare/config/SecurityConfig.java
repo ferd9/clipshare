@@ -86,6 +86,7 @@ public class SecurityConfig {
                         .requestMatchers("/legal/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/clips/feed", "/api/clips/{id}").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/reports").permitAll()
+                        .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "MODERATOR")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 // Sin esto, Spring Security devuelve 403 tanto para "sin credenciales" como para
