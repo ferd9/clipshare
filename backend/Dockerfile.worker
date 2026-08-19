@@ -1,7 +1,10 @@
 FROM eclipse-temurin:21-jdk
 
-# ffmpeg + PDQ hashing (el worker es el único servicio que necesita recodificar video/frames)
-RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+# ffmpeg + PDQ hashing (el worker es el único servicio que necesita recodificar video/frames).
+# Los mirrors oficiales de Ubuntu se fuerzan a HTTPS: algunas redes corporativas devuelven
+# 403 en el puerto 80 (HTTP plano) que usa apt por defecto.
+RUN sed -i 's|http://archive.ubuntu.com|https://archive.ubuntu.com|g; s|http://security.ubuntu.com|https://security.ubuntu.com|g' /etc/apt/sources.list.d/ubuntu.sources \
+    && apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
