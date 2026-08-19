@@ -12,14 +12,17 @@ import java.util.UUID;
 
 public interface ReportRepository extends JpaRepository<Report, UUID> {
 
-    @EntityGraph(attributePaths = {"clip", "clip.owner"})
+    // Trae ambos lados polimórficos (clip/comment, docs/SPEC.md sección 11.1) — para cualquier
+    // reporte dado, solo uno de los dos va a tener datos; el EntityGraph sobre el otro es un
+    // left join que simplemente no trae nada.
+    @EntityGraph(attributePaths = {"clip", "clip.owner", "comment", "comment.user"})
     @Query("SELECT r FROM Report r WHERE r.id = :id")
     Optional<Report> findByIdWithClip(@Param("id") UUID id);
 
     // "Pendiente" = todavía no resuelto (ni DISMISSED ni ACTIONED) — un reporte en
     // UNDER_REVIEW (contra-notificación ya presentada) sigue necesitando la decisión final
     // de un admin, así que también cuenta como pendiente acá.
-    @EntityGraph(attributePaths = {"clip", "clip.owner"})
+    @EntityGraph(attributePaths = {"clip", "clip.owner", "comment", "comment.user"})
     @Query("SELECT r FROM Report r WHERE r.status IN ('OPEN', 'UNDER_REVIEW')")
     Page<Report> findPending(Pageable pageable);
 }

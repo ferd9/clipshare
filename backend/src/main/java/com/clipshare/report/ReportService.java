@@ -4,6 +4,11 @@ import com.clipshare.auth.EmailService;
 import com.clipshare.clip.Clip;
 import com.clipshare.clip.ClipRepository;
 import com.clipshare.clip.ModerationStatus;
+import com.clipshare.comment.Comment;
+import com.clipshare.comment.CommentRepository;
+import com.clipshare.comment.CommentStatus;
+import com.clipshare.comment.ShadowBanService;
+import com.clipshare.comment.dto.CreateCommentReportRequest;
 import com.clipshare.config.ApiException;
 import com.clipshare.moderation.NcmecReportClient;
 import com.clipshare.moderation.StrikeReason;
@@ -39,21 +44,32 @@ public class ReportService {
     private static final int COUNTER_NOTICE_BUSINESS_DAYS = 10;
     private static final int MAX_PAGE_SIZE = 50;
 
+    // Umbral de reportes desde orígenes distintos antes de mandar un comentario a revisión
+    // automáticamente (docs/SPEC.md sección 11.7). Simplificación deliberada: cuenta reportes
+    // totales, no "distintos ip_hash/usuario" — deduplicar reporteros exigiría guardar el
+    // origen de cada reporte de comentario, que hoy no se persiste (solo el email declarado).
+    private static final int COMMENT_REPORT_THRESHOLD = 5;
+
     private final ReportRepository reportRepository;
     private final ClipRepository clipRepository;
+    private final CommentRepository commentRepository;
     private final DmcaCounterNoticeRepository counterNoticeRepository;
     private final StrikeService strikeService;
+    private final ShadowBanService shadowBanService;
     private final NcmecReportClient ncmecReportClient;
     private final StorageService storageService;
     private final EmailService emailService;
 
     public ReportService(ReportRepository reportRepository, ClipRepository clipRepository,
-                          DmcaCounterNoticeRepository counterNoticeRepository, StrikeService strikeService,
+                          CommentRepository commentRepository, DmcaCounterNoticeRepository counterNoticeRepository,
+                          StrikeService strikeService, ShadowBanService shadowBanService,
                           NcmecReportClient ncmecReportClient, StorageService storageService, EmailService emailService) {
         this.reportRepository = reportRepository;
         this.clipRepository = clipRepository;
+        this.commentRepository = commentRepository;
         this.counterNoticeRepository = counterNoticeRepository;
         this.strikeService = strikeService;
+        this.shadowBanService = shadowBanService;
         this.ncmecReportClient = ncmecReportClient;
         this.storageService = storageService;
         this.emailService = emailService;
@@ -85,6 +101,26 @@ public class ReportService {
             throw ApiException.badRequest("INCOMPLETE_DMCA_NOTICE",
                     "Un aviso DMCA requiere dirección, declaración de buena fe, declaración de exactitud y firma (17 U.S.C. §512(c)(3))");
         }
+    }
+
+    /** Reporte de un comentario (docs/SPEC.md sección 11.7) — cualquiera puede reportar,
+     * autenticado o no, igual que con clips. Sin los campos DMCA formales: no aplican a un
+     * comentario de texto. */
+    @Transactional
+    public Report createCommentReport(UUID commentId, CreateCommentReportRequest request) {
+        Comment comment = commentRepository.findById(commentId)
+                .filter(c -> !c.isDeleted())
+                .orElseThrow(() -> ApiException.notFound("COMMENT_NOT_FOUND", "Comentario no encontrado"));
+
+        Report report = new Report(comment, request.reason(), request.reporterName(),
+                request.reporterEmail(), request.description());
+        reportRepository.save(report);
+
+        comment.setReportCount(comment.getReportCount() + 1);
+        if (comment.getReportCount() >= COMMENT_REPORT_THRESHOLD && comment.getStatus() == CommentStatus.VISIBLE) {
+            comment.setStatus(CommentStatus.PENDING_REVIEW);
+        }
+        return report;
     }
 
     @Transactional
@@ -142,6 +178,15 @@ public class ReportService {
         }
 
         report.setStatus(ReportStatus.ACTIONED);
+        if (report.getTargetType() == ReportTargetType.COMMENT) {
+            resolveCommentConfirmation(report);
+        } else {
+            resolveClipConfirmation(report);
+        }
+        return report;
+    }
+
+    private void resolveClipConfirmation(Report report) {
         Clip clip = report.getClip();
         clip.setModerationStatus(ModerationStatus.TAKEN_DOWN);
         User owner = clip.getOwner();
@@ -155,7 +200,27 @@ public class ReportService {
         }
 
         emailService.sendTakedownNotice(owner.getEmail(), clip.getId(), report.getReason().name());
-        return report;
+    }
+
+    /** Mismo pipeline que un clip confirmado, salvo que un comentario de GUEST no tiene
+     * cuenta que strikear/banear — ahí el shadow-ban durable del origen (docs/SPEC.md sección
+     * 11.6) es el equivalente funcional de un ban de cuenta. */
+    private void resolveCommentConfirmation(Report report) {
+        Comment comment = report.getComment();
+        comment.setStatus(CommentStatus.REMOVED);
+        User author = comment.getUser();
+
+        if (author != null) {
+            if (report.getReason() == ReportReason.CSAM) {
+                strikeService.recordCsamStrike(author, report.getId());
+                ncmecReportClient.report(comment.getId(), "MANUAL_REVIEW");
+            } else {
+                strikeService.recordStandardStrike(author, mapToStrikeReason(report.getReason()), report.getId());
+            }
+        } else {
+            shadowBanService.banIndefinitely(comment.getIpHash(), comment.getAnonSessionId(),
+                    "confirmed_report:" + report.getReason());
+        }
     }
 
     private StrikeReason mapToStrikeReason(ReportReason reason) {

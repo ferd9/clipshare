@@ -53,6 +53,10 @@ app:
       guest-per-hour: ${COMMENT_RATE_LIMIT_GUEST_PER_HOUR:5}
       user-per-hour: ${COMMENT_RATE_LIMIT_USER_PER_HOUR:30}
   turnstile:
+    # mock | cloudflare — mismo patrón que app.moderation.csam-provider: mock acepta
+    # cualquier token no vacío (no hay cuenta real de Cloudflare en este entorno, ver
+    # MockTurnstileClient); cloudflare hace la verificación real contra su API.
+    provider: ${APP_TURNSTILE_PROVIDER:mock}
     secret-key: ${TURNSTILE_SECRET_KEY:change-me-in-dev}
   anon-session:
     cookie-secret: ${ANON_SESSION_COOKIE_SECRET:change-me-in-dev}

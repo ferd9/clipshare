@@ -1,6 +1,7 @@
 package com.clipshare.report;
 
 import com.clipshare.clip.Clip;
+import com.clipshare.comment.Comment;
 import com.clipshare.user.User;
 import jakarta.persistence.*;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -22,9 +23,20 @@ public class Report {
     @GeneratedValue
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "clip_id", nullable = false)
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "target_type", nullable = false)
+    private ReportTargetType targetType = ReportTargetType.CLIP;
+
+    // Exactamente uno de los dos está seteado, según targetType (docs/SPEC.md sección 11.1,
+    // chk_report_target a nivel de base de datos).
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "clip_id")
     private Clip clip;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "comment_id")
+    private Comment comment;
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
@@ -83,6 +95,17 @@ public class Report {
         this.signature = signature;
     }
 
+    /** Reporte sobre un comentario (docs/SPEC.md sección 11.7) — sin los campos DMCA formales, que
+     * solo aplican a un aviso de retiro de contenido de video (sección 2, 17 U.S.C. §512(c)(3)). */
+    public Report(Comment comment, ReportReason reason, String reporterName, String reporterEmail, String description) {
+        this.targetType = ReportTargetType.COMMENT;
+        this.comment = comment;
+        this.reason = reason;
+        this.reporterName = reporterName;
+        this.reporterEmail = reporterEmail;
+        this.description = description;
+    }
+
     @PrePersist
     void onCreate() {
         this.createdAt = Instant.now();
@@ -92,8 +115,16 @@ public class Report {
         return id;
     }
 
+    public ReportTargetType getTargetType() {
+        return targetType;
+    }
+
     public Clip getClip() {
         return clip;
+    }
+
+    public Comment getComment() {
+        return comment;
     }
 
     public ReportReason getReason() {

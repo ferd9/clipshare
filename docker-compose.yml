@@ -27,6 +27,7 @@ services:
       - UPLOAD_MAX_FILE_SIZE=300MB
       - MODERATION_CSAM_PROVIDER=mock
       - JWT_SECRET=change-me-in-dev
+      - APP_TURNSTILE_PROVIDER=mock
       - TURNSTILE_SECRET_KEY=change-me-in-dev
       - ANON_SESSION_COOKIE_SECRET=change-me-in-dev
     volumes:

@@ -86,6 +86,13 @@ public class SecurityConfig {
                         .requestMatchers("/legal/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/clips/feed", "/api/clips/{id}").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/reports").permitAll()
+                        // Comentarios: lectura pública, y creación/reporte con auth *opcional*
+                        // (JwtAuthenticationFilter ya autentica si hay un Bearer válido; acá solo
+                        // se permite que la request entre sin uno — CommentService decide GUEST
+                        // vs USER según haya o no principal, ver docs/SPEC.md sección 11.8).
+                        .requestMatchers(HttpMethod.GET, "/api/clips/{id}/comments").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/clips/{id}/comments").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/comments/{id}/report").permitAll()
                         .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "MODERATOR")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

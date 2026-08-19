@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { CommentSection } from '../comments/CommentSection';
 import type { ClipDetail } from './types';
 import { mediaUrl } from './clipsApi';
 
@@ -36,6 +37,7 @@ export function ClipCard({ clip }: { clip: ClipDetail }) {
           Reportar
         </Link>
       </div>
+      <CommentSection clipId={clip.id} />
     </article>
   );
 }

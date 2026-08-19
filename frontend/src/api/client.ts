@@ -2,7 +2,11 @@ import axios, { type InternalAxiosRequestConfig } from 'axios';
 
 const baseURL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
 
-export const apiClient = axios.create({ baseURL });
+// withCredentials: el backend corre en otro puerto que el frontend en dev (Vite), y la
+// cookie anon_session_id (docs/SPEC.md sección 11.3) solo va y vuelve entre orígenes
+// distintos si el navegador la manda explícitamente — sin esto, cada comentario de invitado
+// parecería venir de una sesión anónima nueva.
+export const apiClient = axios.create({ baseURL, withCredentials: true });
 
 // El access token vive solo en memoria (nunca en localStorage) para acotar el daño de un
 // XSS: como mucho robaría el token de la sesión actual, no algo persistente. AuthContext

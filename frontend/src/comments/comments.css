@@ -1,0 +1,176 @@
+.comment-section {
+  margin-top: 0.25rem;
+}
+
+.comment-toggle {
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.75;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.85rem;
+}
+
+.comment-section-body {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.comment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.comment-form textarea {
+  resize: vertical;
+  min-height: 2.5rem;
+  padding: 0.5rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.comment-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.comment-form-actions button {
+  padding: 0.4rem 0.9rem;
+  border-radius: 0.4rem;
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.comment-form-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.comment-form-cancel {
+  background: transparent !important;
+  color: inherit !important;
+  border: 1px solid var(--border) !important;
+}
+
+.turnstile-dev {
+  font-size: 0.8rem;
+  opacity: 0.75;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.comment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.comment-item {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.comment-item-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.comment-item-body {
+  margin: 0.25rem 0;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.comment-item-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.comment-item-actions button {
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.75rem;
+}
+
+.comment-item-actions button:hover {
+  opacity: 1;
+}
+
+.comment-report-form {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.comment-report-form select,
+.comment-report-form input {
+  padding: 0.3rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  font-size: 0.8rem;
+}
+
+.comment-report-form button {
+  padding: 0.3rem 0.7rem;
+  border-radius: 0.4rem;
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.comment-report-done {
+  font-size: 0.8rem;
+  opacity: 0.7;
+  margin: 0.4rem 0 0;
+}
+
+.comment-empty {
+  font-size: 0.85rem;
+  opacity: 0.65;
+  margin: 0;
+}
+
+.comment-load-more {
+  align-self: center;
+  padding: 0.4rem 1rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.comment-load-more:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
