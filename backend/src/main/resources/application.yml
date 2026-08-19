@@ -1,0 +1,63 @@
+spring:
+  application:
+    name: clipshare
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/clipshare}
+    username: ${SPRING_DATASOURCE_USERNAME:dev}
+    password: ${SPRING_DATASOURCE_PASSWORD:dev}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
+
+server:
+  port: 8080
+
+# Config propia de la app (ver docs/SPEC.md secciones 6 y 13)
+app:
+  jwt:
+    secret: ${JWT_SECRET:change-me-in-dev}
+  storage:
+    mode: ${STORAGE_MODE:local}       # local | s3
+    local-path: ${STORAGE_LOCAL_PATH:/data/clips}
+  comments:
+    rate-limit:
+      guest-per-hour: ${COMMENT_RATE_LIMIT_GUEST_PER_HOUR:5}
+      user-per-hour: ${COMMENT_RATE_LIMIT_USER_PER_HOUR:30}
+  turnstile:
+    secret-key: ${TURNSTILE_SECRET_KEY:change-me-in-dev}
+  anon-session:
+    cookie-secret: ${ANON_SESSION_COOKIE_SECRET:change-me-in-dev}
+
+---
+# Perfil "dev": API HTTP normal, corre en el contenedor `backend` (docker-compose.yml)
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+logging:
+  level:
+    com.clipshare: DEBUG
+
+---
+# Perfil "worker": consumidor de cola (ffmpeg + PDQ hashing), corre en el contenedor `worker`.
+# No expone la API HTTP; se activa en fases posteriores (ver docs/SPEC.md sección 14).
+spring:
+  config:
+    activate:
+      on-profile: worker
+
+logging:
+  level:
+    com.clipshare.worker: DEBUG

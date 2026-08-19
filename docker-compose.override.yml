@@ -1,0 +1,10 @@
+# Overrides de desarrollo local. docker-compose.yml ya no distingue "prod" (no hay perfil
+# de producción todavía, ver docs/SPEC.md sección 16), así que este archivo solo agrega
+# lo que hace falta específicamente para desarrollar cómodo con bind mounts en Windows/Docker Desktop.
+services:
+  frontend:
+    environment:
+      # Los bind mounts de Docker Desktop en Windows no siempre emiten eventos de filesystem
+      # nativos; sin polling, Vite no detecta cambios guardados en el host.
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=300

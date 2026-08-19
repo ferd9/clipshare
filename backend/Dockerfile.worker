@@ -1,0 +1,15 @@
+FROM eclipse-temurin:21-jdk
+
+# ffmpeg + PDQ hashing (el worker es el único servicio que necesita recodificar video/frames)
+RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY .mvn/ .mvn
+COPY mvnw pom.xml ./
+RUN chmod +x mvnw && ./mvnw -B dependency:go-offline
+
+COPY src ./src
+
+# Sin EXPOSE: el worker no sirve HTTP, solo consume la cola de Redis (perfil "worker")
+CMD ["./mvnw", "-B", "spring-boot:run"]
