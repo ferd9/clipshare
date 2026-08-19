@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import type { ClipDetail } from './types';
 import { mediaUrl } from './clipsApi';
 
@@ -29,7 +30,12 @@ export function ClipCard({ clip }: { clip: ClipDetail }) {
         <span>{clip.ownerDisplayName}</span>
         <span>{formatDuration(clip.durationMs)}</span>
       </div>
-      {platformLabel && <span className="clip-card-source">vía {platformLabel}</span>}
+      <div className="clip-card-footer">
+        {platformLabel && <span className="clip-card-source">vía {platformLabel}</span>}
+        <Link to={`/report/${clip.id}`} className="clip-card-report">
+          Reportar
+        </Link>
+      </div>
     </article>
   );
 }

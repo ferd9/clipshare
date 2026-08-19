@@ -46,3 +46,12 @@
   font-size: 0.85rem;
   text-align: center;
 }
+
+.app-footer {
+  margin-top: 3rem;
+  padding: 1.5rem;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  font-size: 0.85rem;
+  opacity: 0.75;
+}

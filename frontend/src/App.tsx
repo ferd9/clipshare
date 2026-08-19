@@ -7,6 +7,8 @@ import { AppShell } from './layout/AppShell';
 import { ClipFeed } from './clips/ClipFeed';
 import { UploadOwnClip } from './clips/UploadOwnClip';
 import { ImportFromLink } from './clips/ImportFromLink';
+import { DmcaPage } from './legal/DmcaPage';
+import { ReportForm } from './legal/ReportForm';
 
 function App() {
   return (
@@ -17,6 +19,8 @@ function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route element={<AppShell />}>
             <Route path="/" element={<ClipFeed />} />
+            <Route path="/legal/dmca" element={<DmcaPage />} />
+            <Route path="/report/:clipId" element={<ReportForm />} />
             <Route element={<ProtectedRoute />}>
               <Route path="/upload" element={<UploadOwnClip />} />
               <Route path="/import" element={<ImportFromLink />} />

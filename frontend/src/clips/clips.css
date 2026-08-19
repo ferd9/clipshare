@@ -34,6 +34,17 @@
   opacity: 0.6;
 }
 
+.clip-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.clip-card-report {
+  font-size: 0.75rem;
+  opacity: 0.6;
+}
+
 .clips-loading,
 .clips-error,
 .clips-empty {

@@ -3,6 +3,7 @@ package com.clipshare.worker;
 import com.clipshare.clip.Clip;
 import com.clipshare.clip.ClipQueuePublisher;
 import com.clipshare.clip.ClipService;
+import com.clipshare.moderation.ModerationService;
 import com.clipshare.storage.FileHasher;
 import com.clipshare.storage.StorageService;
 import org.slf4j.Logger;
@@ -17,8 +18,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 /**
  * Consumidor de la cola de Redis (docs/SPEC.md sección 4): corre solo en el contenedor
@@ -37,23 +42,27 @@ public class ClipProcessingWorker implements SmartLifecycle {
     private static final Logger log = LoggerFactory.getLogger(ClipProcessingWorker.class);
     private static final Duration POLL_TIMEOUT = Duration.ofSeconds(5);
     private static final long MAX_DURATION_MS = 20_000;
+    private static final int MODERATION_MAX_FRAMES = 20; // 1/seg sobre un clip de hasta 20s
 
     private final StringRedisTemplate redisTemplate;
     private final ClipService clipService;
     private final StorageService storageService;
     private final FfmpegProcessor ffmpegProcessor;
     private final FileHasher fileHasher;
+    private final ModerationService moderationService;
 
     private volatile boolean running = false;
     private Thread thread;
 
     public ClipProcessingWorker(StringRedisTemplate redisTemplate, ClipService clipService,
-                                 StorageService storageService, FfmpegProcessor ffmpegProcessor, FileHasher fileHasher) {
+                                 StorageService storageService, FfmpegProcessor ffmpegProcessor, FileHasher fileHasher,
+                                 ModerationService moderationService) {
         this.redisTemplate = redisTemplate;
         this.clipService = clipService;
         this.storageService = storageService;
         this.ffmpegProcessor = ffmpegProcessor;
         this.fileHasher = fileHasher;
+        this.moderationService = moderationService;
     }
 
     @Override
@@ -120,7 +129,35 @@ public class ClipProcessingWorker implements SmartLifecycle {
         if (duplicate.isPresent()) {
             log.warn("Clip {} es un duplicado exacto de {} (content_hash={}), se rechaza",
                     clipId, duplicate.get().getId(), contentHash);
-            clipService.markRejectedDuplicate(clipId);
+            clipService.markRejected(clipId);
+            deleteQuietly(workVideo);
+            deleteQuietly(workThumb);
+            storageService.delete(rawRelativePath);
+            return;
+        }
+
+        // duration/width/height/content_hash quedan igual aunque la moderación rechace el clip
+        // (para que un intento de resubida del mismo archivo lo detecte como duplicado, ver
+        // idx_clips_content_hash — exactamente el caso "bloquear reintentos tras un takedown"
+        // de docs/SPEC.md sección 7).
+        clipService.markReady(clipId, result.durationMs(), result.width(), result.height(), contentHash);
+
+        // Pipeline de moderación (sección 10): corre siempre, para OWN_UPLOAD y EXTERNAL_CAPTURE
+        // por igual, antes de que el clip pueda quedar público.
+        Path framesDir = storageService.resolveLocalPath("work/" + clipId + "/frames");
+        List<Path> frames = ffmpegProcessor.extractFrames(workVideo, framesDir, MODERATION_MAX_FRAMES);
+        List<ModerationService.FrameSample> samples = new ArrayList<>();
+        for (int i = 0; i < frames.size(); i++) {
+            samples.add(new ModerationService.FrameSample(frames.get(i), i * 1000));
+        }
+
+        ModerationService.Outcome outcome = moderationService.moderate(clipId, samples);
+        deleteRecursively(framesDir); // nunca se retienen los frames, matcheen o no (sección 10)
+
+        if (outcome == ModerationService.Outcome.REJECTED) {
+            log.warn("Clip {} rechazado por moderación", clipId);
+            clipService.markRejected(clipId);
+            // Sin retener el contenido: ni el archivo crudo ni el procesado quedan en disco.
             deleteQuietly(workVideo);
             deleteQuietly(workThumb);
             storageService.delete(rawRelativePath);
@@ -128,17 +165,25 @@ public class ClipProcessingWorker implements SmartLifecycle {
         }
 
         // Solo se copia a "public/" (servido por /media/clips/**, ver WebConfig) una vez que
-        // pasó la "moderación" — mock que aprueba todo en esta fase, ver ClipService.markPublished.
+        // pasó moderación de verdad.
         Path publicVideo = storageService.resolveLocalPath("public/" + clipId + "/final.mp4");
         Path publicThumb = storageService.resolveLocalPath("public/" + clipId + "/thumb.jpg");
         Files.createDirectories(publicVideo.getParent());
         Files.move(workVideo, publicVideo, StandardCopyOption.REPLACE_EXISTING);
         Files.move(workThumb, publicThumb, StandardCopyOption.REPLACE_EXISTING);
 
-        clipService.markPublished(clipId, result.durationMs(), result.width(), result.height(), contentHash,
-                "public/" + clipId + "/final.mp4", "public/" + clipId + "/thumb.jpg");
+        clipService.markPublished(clipId, "public/" + clipId + "/final.mp4", "public/" + clipId + "/thumb.jpg");
 
         storageService.delete(rawRelativePath);
+    }
+
+    private void deleteRecursively(Path dir) {
+        if (!Files.exists(dir)) return;
+        try (Stream<Path> paths = Files.walk(dir)) {
+            paths.sorted(Comparator.reverseOrder()).forEach(this::deleteQuietly);
+        } catch (IOException e) {
+            log.warn("No se pudo limpiar {}", dir, e);
+        }
     }
 
     private void deleteQuietly(Path path) {

@@ -172,12 +172,14 @@ public class ClipService {
         clipRepository.findById(clipId).ifPresent(clip -> clip.setProcessingStatus(ProcessingStatus.FAILED));
     }
 
-    /** Duplicado exacto (mismo content_hash) de otro clip ya existente: se descarta, no se publica. */
+    /**
+     * Duplicado (mismo content_hash) o rechazado por moderación (docs/SPEC.md sección 10):
+     * el clip nunca llega a "public/" — el motivo específico queda en moderation_logs, acá
+     * el clip solo necesita reflejar que no se va a publicar.
+     */
     @Transactional
-    public void markRejectedDuplicate(UUID clipId) {
-        Clip clip = getOrThrow(clipId);
-        clip.setProcessingStatus(ProcessingStatus.READY);
-        clip.setModerationStatus(ModerationStatus.REJECTED);
+    public void markRejected(UUID clipId) {
+        getOrThrow(clipId).setModerationStatus(ModerationStatus.REJECTED);
     }
 
     public Optional<Clip> findByContentHash(String contentHash) {
@@ -185,21 +187,26 @@ public class ClipService {
     }
 
     /**
-     * Fase 2: todavía no existe el pipeline real de moderación (PDQ/CSAM llega en la Fase 4,
-     * ver docs/SPEC.md sección 10) — esto es el "mock que aprueba todo automáticamente" que
-     * pide la sección 14 para poder probar el pipeline completo end-to-end.
+     * ffmpeg ya terminó (recorte/normalización/probe) independientemente de lo que decida la
+     * moderación después — duration/width/height/content_hash quedan seteados en cualquier
+     * caso, entre otras cosas para que un reintento del mismo archivo tras un rechazo lo
+     * detecte como duplicado (ver ClipProcessingWorker).
      */
     @Transactional
-    public void markPublished(UUID clipId, long durationMs, Integer width, Integer height,
-                               String contentHash, String filePath, String thumbnailPath) {
+    public void markReady(UUID clipId, long durationMs, Integer width, Integer height, String contentHash) {
         Clip clip = getOrThrow(clipId);
         clip.setDurationMs((int) durationMs);
         clip.setWidth(width);
         clip.setHeight(height);
         clip.setContentHash(contentHash);
+        clip.setProcessingStatus(ProcessingStatus.READY);
+    }
+
+    @Transactional
+    public void markPublished(UUID clipId, String filePath, String thumbnailPath) {
+        Clip clip = getOrThrow(clipId);
         clip.setFilePath(filePath);
         clip.setThumbnailPath(thumbnailPath);
-        clip.setProcessingStatus(ProcessingStatus.READY);
         clip.setModerationStatus(ModerationStatus.PUBLISHED);
         clip.setPublishedAt(Instant.now());
     }

@@ -55,10 +55,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             if (user.isPresent() && SecurityContextHolder.getContext().getAuthentication() == null) {
                 AppUserPrincipal principal = new AppUserPrincipal(user.get());
-                var authToken = new UsernamePasswordAuthenticationToken(
-                        principal, null, principal.getAuthorities());
-                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+                // isEnabled()/isAccountNonLocked() solo los chequea Spring Security en el login
+                // interactivo (DaoAuthenticationProvider) — acá hay que pedirlos a mano, porque
+                // un JWT ya emitido no pasa por ese camino. Sin esto, un strike/ban (StrikeService)
+                // solo tendría efecto recién cuando el access token ya vigente expirase solo.
+                if (principal.isEnabled() && principal.isAccountNonLocked()) {
+                    var authToken = new UsernamePasswordAuthenticationToken(
+                            principal, null, principal.getAuthorities());
+                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                }
             }
         } catch (JwtException | IllegalArgumentException ignored) {
             // Token inválido/expirado: seguimos sin autenticar: el endpoint decide si eso alcanza (401/403).

@@ -15,6 +15,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 /**
  * Invoca ffmpeg/ffprobe vía ProcessBuilder (ver docs/SPEC.md sección 3). Recorta a
@@ -69,6 +70,23 @@ public class FfmpegProcessor {
                 "-ss", "0.1", "-frames:v", "1", outputThumbnail.toString()), false);
 
         return new ProcessResult(finalProbe.durationMs(), finalProbe.width(), finalProbe.height());
+    }
+
+    /**
+     * Extrae hasta {@code maxFrames} frames representativos (uno por segundo) para el
+     * pipeline de moderación (docs/SPEC.md sección 10, paso 2). Devuelve las rutas en orden.
+     */
+    public List<Path> extractFrames(Path input, Path outputDir, int maxFrames) throws IOException {
+        Files.createDirectories(outputDir);
+        runProcess(List.of("ffmpeg", "-y", "-i", input.toString(),
+                "-vf", "fps=1", "-frames:v", String.valueOf(maxFrames),
+                outputDir.resolve("frame_%03d.jpg").toString()), false);
+
+        try (Stream<Path> files = Files.list(outputDir)) {
+            return files.filter(p -> p.getFileName().toString().startsWith("frame_"))
+                    .sorted()
+                    .toList();
+        }
     }
 
     ProbeResult probe(Path input) throws IOException {

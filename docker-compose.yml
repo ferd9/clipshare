@@ -25,6 +25,7 @@ services:
       - STORAGE_MODE=local
       - STORAGE_LOCAL_PATH=/data/clips
       - UPLOAD_MAX_FILE_SIZE=300MB
+      - MODERATION_CSAM_PROVIDER=mock
       - JWT_SECRET=change-me-in-dev
       - TURNSTILE_SECRET_KEY=change-me-in-dev
       - ANON_SESSION_COOKIE_SECRET=change-me-in-dev
@@ -48,6 +49,7 @@ services:
       - SPRING_REDIS_HOST=redis
       - STORAGE_MODE=local
       - STORAGE_LOCAL_PATH=/data/clips
+      - MODERATION_CSAM_PROVIDER=mock
     volumes:
       - ./backend:/app
       - clip-storage:/data/clips

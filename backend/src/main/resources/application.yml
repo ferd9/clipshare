@@ -44,6 +44,10 @@ app:
   storage:
     mode: ${STORAGE_MODE:local}       # local | s3
     local-path: ${STORAGE_LOCAL_PATH:/data/clips}
+  moderation:
+    # mock | ncmec — mock siempre da "limpio" (sin lista real de hashes, ver docs/SPEC.md
+    # secciones 2 y 10); ncmec queda como stub hasta cerrar el trámite de membresía ESP.
+    csam-provider: ${MODERATION_CSAM_PROVIDER:mock}
   comments:
     rate-limit:
       guest-per-hour: ${COMMENT_RATE_LIMIT_GUEST_PER_HOUR:5}
