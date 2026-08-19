@@ -27,6 +27,11 @@ server:
 app:
   jwt:
     secret: ${JWT_SECRET:change-me-in-dev}
+    access-token-ttl-minutes: 20   # corta duración a propósito, ver docs/SPEC.md sección 12
+    refresh-token-ttl-days: 30
+  auth:
+    email-verification-ttl-hours: 24
+    password-reset-ttl-hours: 1
   storage:
     mode: ${STORAGE_MODE:local}       # local | s3
     local-path: ${STORAGE_LOCAL_PATH:/data/clips}
