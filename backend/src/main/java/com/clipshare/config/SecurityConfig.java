@@ -6,6 +6,7 @@ import com.clipshare.user.UserRepository;
 import tools.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -49,7 +50,31 @@ public class SecurityConfig {
         return new JwtAuthenticationFilter(jwtService, userRepository);
     }
 
+    /**
+     * Cadena aparte para /media/clips/** (video/thumbnail servidos por WebConfig), con más
+     * prioridad (@Order menor) que la cadena principal. La necesitamos separada porque Spring
+     * Security agrega por defecto {@code Cache-Control: no-store} a toda respuesta — y Chrome
+     * directamente se cuelga cargando un <video> cuando el recurso llega marcado como no
+     * cacheable (el <video> se queda en HAVE_NOTHING para siempre, sin emitir ningún error).
+     * Acá lo desactivamos y dejamos que el Cache-Control público lo ponga el resource handler
+     * de Spring MVC (ver WebConfig), que es el lugar correcto para cachear contenido estático.
+     */
     @Bean
+    @Order(1)
+    public SecurityFilterChain mediaSecurityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/media/clips/**")
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                .headers(headers -> headers.cacheControl(cache -> cache.disable()));
+
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter, ObjectMapper objectMapper) throws Exception {
         http

@@ -19,9 +19,18 @@ spring:
     redis:
       host: ${SPRING_REDIS_HOST:localhost}
       port: ${SPRING_REDIS_PORT:6379}
+  servlet:
+    multipart:
+      max-file-size: ${UPLOAD_MAX_FILE_SIZE:300MB}
+      max-request-size: ${UPLOAD_MAX_FILE_SIZE:300MB}
 
 server:
   port: 8080
+  tomcat:
+    # Sin esto, Tomcat corta el POST en 2MB (default) mucho antes de llegar al límite de
+    # arriba — es un límite del server, independiente del de Spring multipart.
+    max-http-form-post-size: ${UPLOAD_MAX_FILE_SIZE:300MB}
+    max-swallow-size: ${UPLOAD_MAX_FILE_SIZE:300MB}
 
 # Config propia de la app (ver docs/SPEC.md secciones 6 y 13)
 app:
@@ -57,11 +66,13 @@ logging:
 
 ---
 # Perfil "worker": consumidor de cola (ffmpeg + PDQ hashing), corre en el contenedor `worker`.
-# No expone la API HTTP; se activa en fases posteriores (ver docs/SPEC.md sección 14).
+# No expone la API HTTP (sin servidor embebido: no lo necesita, solo consume Redis).
 spring:
   config:
     activate:
       on-profile: worker
+  main:
+    web-application-type: none
 
 logging:
   level:

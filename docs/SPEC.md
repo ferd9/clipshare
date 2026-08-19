@@ -341,7 +341,7 @@ CREATE TABLE clips (
     content_hash VARCHAR(64),                 -- SHA-256 del archivo final: dedupe + bloquear reintentos tras un takedown
     width INTEGER,
     height INTEGER,
-    duration_ms INTEGER NOT NULL CHECK (duration_ms <= 20000),
+    duration_ms INTEGER CHECK (duration_ms <= 20000),         -- sin NOT NULL, ver nota de implementación abajo
 
     audio_track_id UUID REFERENCES audio_tracks(id),
 
@@ -366,6 +366,8 @@ CREATE UNIQUE INDEX idx_clips_content_hash ON clips(content_hash) WHERE content_
 ```
 
 > Nota de escalabilidad (no bloqueante para el MVP): `view_count`/`like_count` en la misma fila que se lee para el feed genera contención de escritura bajo tráfico alto. Si el feed empieza a sentirse lento, mover esos contadores a Redis (o a una tabla `clip_stats` separada) y sincronizar de forma asíncrona.
+>
+> Nota de implementación (Fase 2): `duration_ms` se define sin `NOT NULL` a propósito, a diferencia del DDL original de este documento. Para `OWN_UPLOAD` la fila se inserta con `processing_status = QUEUED` *antes* de que el worker de ffmpeg recorte/normalice el archivo — recién ahí se conoce la duración final real. Mismo razonamiento que ya aplicaba a `content_hash` (tampoco `NOT NULL`): ese valor no existe hasta que termina el pipeline asíncrono. El `CHECK (duration_ms <= 20000)` se mantiene para cuando sí tiene valor.
 
 ### V3 — Moderación, CSAM y strikes
 
