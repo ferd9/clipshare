@@ -1,5 +1,5 @@
 import { apiClient } from '../api/client';
-import type { ClipDetail, ClipUploadResult, PageResponse } from './types';
+import type { ClipDetail, ClipPlatform, ClipUploadResult, PageResponse } from './types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
 
@@ -20,6 +20,29 @@ export async function uploadClip(file: File, onProgress?: (percent: number) => v
       }
     },
   });
+  return data;
+}
+
+export interface ExternalCaptureMetadata {
+  sourceUrl: string;
+  sourcePlatform: ClipPlatform;
+  sourceExternalId?: string;
+  sourceClipStartMs: number;
+  sourceClipEndMs: number;
+  sourceTitle?: string;
+}
+
+export async function uploadFromCapture(blob: Blob, metadata: ExternalCaptureMetadata): Promise<ClipUploadResult> {
+  const formData = new FormData();
+  formData.append('file', blob, 'capture.webm');
+  formData.append('sourceUrl', metadata.sourceUrl);
+  formData.append('sourcePlatform', metadata.sourcePlatform);
+  if (metadata.sourceExternalId) formData.append('sourceExternalId', metadata.sourceExternalId);
+  formData.append('sourceClipStartMs', String(metadata.sourceClipStartMs));
+  formData.append('sourceClipEndMs', String(metadata.sourceClipEndMs));
+  if (metadata.sourceTitle) formData.append('sourceTitle', metadata.sourceTitle);
+
+  const { data } = await apiClient.post<ClipUploadResult>('/api/clips/from-capture', formData);
   return data;
 }
 

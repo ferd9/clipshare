@@ -143,6 +143,46 @@ public class Clip {
         this.sourcePlatform = sourcePlatform;
     }
 
+    public String getSourceUrl() {
+        return sourceUrl;
+    }
+
+    public void setSourceUrl(String sourceUrl) {
+        this.sourceUrl = sourceUrl;
+    }
+
+    public String getSourceExternalId() {
+        return sourceExternalId;
+    }
+
+    public void setSourceExternalId(String sourceExternalId) {
+        this.sourceExternalId = sourceExternalId;
+    }
+
+    public Integer getSourceClipStartMs() {
+        return sourceClipStartMs;
+    }
+
+    public void setSourceClipStartMs(Integer sourceClipStartMs) {
+        this.sourceClipStartMs = sourceClipStartMs;
+    }
+
+    public Integer getSourceClipEndMs() {
+        return sourceClipEndMs;
+    }
+
+    public void setSourceClipEndMs(Integer sourceClipEndMs) {
+        this.sourceClipEndMs = sourceClipEndMs;
+    }
+
+    public String getSourceTitle() {
+        return sourceTitle;
+    }
+
+    public void setSourceTitle(String sourceTitle) {
+        this.sourceTitle = sourceTitle;
+    }
+
     public String getFilePath() {
         return filePath;
     }

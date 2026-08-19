@@ -3,6 +3,7 @@ package com.clipshare.clip;
 import com.clipshare.auth.AppUserPrincipal;
 import com.clipshare.clip.dto.ClipDetailResponse;
 import com.clipshare.clip.dto.ClipUploadResponse;
+import com.clipshare.clip.dto.ExternalCaptureMetadata;
 import com.clipshare.clip.dto.PageResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -28,6 +29,23 @@ public class ClipController {
             @AuthenticationPrincipal AppUserPrincipal principal,
             @RequestParam("file") MultipartFile file) {
         Clip clip = clipService.uploadOwnClip(principal.getUser(), file);
+        return ClipUploadResponse.from(clip);
+    }
+
+    @PostMapping(value = "/from-capture", consumes = "multipart/form-data")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public ClipUploadResponse fromCapture(
+            @AuthenticationPrincipal AppUserPrincipal principal,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("sourceUrl") String sourceUrl,
+            @RequestParam("sourcePlatform") ClipPlatform sourcePlatform,
+            @RequestParam(value = "sourceExternalId", required = false) String sourceExternalId,
+            @RequestParam("sourceClipStartMs") int sourceClipStartMs,
+            @RequestParam("sourceClipEndMs") int sourceClipEndMs,
+            @RequestParam(value = "sourceTitle", required = false) String sourceTitle) {
+        var metadata = new ExternalCaptureMetadata(
+                sourceUrl, sourcePlatform, sourceExternalId, sourceClipStartMs, sourceClipEndMs, sourceTitle);
+        Clip clip = clipService.uploadExternalCapture(principal.getUser(), file, metadata);
         return ClipUploadResponse.from(clip);
     }
 

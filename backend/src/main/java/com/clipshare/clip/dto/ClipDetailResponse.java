@@ -1,6 +1,8 @@
 package com.clipshare.clip.dto;
 
 import com.clipshare.clip.Clip;
+import com.clipshare.clip.ClipPlatform;
+import com.clipshare.clip.ClipSourceType;
 import com.clipshare.clip.ModerationStatus;
 import com.clipshare.clip.ProcessingStatus;
 
@@ -11,6 +13,8 @@ public record ClipDetailResponse(
         UUID id,
         UUID ownerId,
         String ownerDisplayName,
+        ClipSourceType sourceType,
+        ClipPlatform sourcePlatform,
         ProcessingStatus processingStatus,
         ModerationStatus moderationStatus,
         Integer durationMs,
@@ -32,6 +36,8 @@ public record ClipDetailResponse(
                 clip.getId(),
                 clip.getOwner().getId(),
                 clip.getOwner().getDisplayName(),
+                clip.getSourceType(),
+                clip.getSourcePlatform(),
                 clip.getProcessingStatus(),
                 clip.getModerationStatus(),
                 clip.getDurationMs(),

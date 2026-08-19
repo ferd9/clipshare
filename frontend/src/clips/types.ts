@@ -2,10 +2,16 @@ export type ProcessingStatus = 'QUEUED' | 'PROCESSING' | 'READY' | 'FAILED';
 
 export type ModerationStatus = 'PENDING' | 'PUBLISHED' | 'REJECTED' | 'TAKEN_DOWN';
 
+export type ClipSourceType = 'OWN_UPLOAD' | 'EXTERNAL_CAPTURE';
+
+export type ClipPlatform = 'YOUTUBE' | 'VIMEO' | 'TWITCH' | 'NONE';
+
 export interface ClipDetail {
   id: string;
   ownerId: string;
   ownerDisplayName: string;
+  sourceType: ClipSourceType;
+  sourcePlatform: ClipPlatform;
   processingStatus: ProcessingStatus;
   moderationStatus: ModerationStatus;
   durationMs: number | null;

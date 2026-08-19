@@ -6,7 +6,15 @@ function formatDuration(ms: number | null): string {
   return `${Math.round(ms / 1000)}s`;
 }
 
+const PLATFORM_LABEL: Record<string, string> = {
+  YOUTUBE: 'YouTube',
+  VIMEO: 'Vimeo',
+  TWITCH: 'Twitch',
+};
+
 export function ClipCard({ clip }: { clip: ClipDetail }) {
+  const platformLabel = clip.sourceType === 'EXTERNAL_CAPTURE' ? PLATFORM_LABEL[clip.sourcePlatform] : null;
+
   return (
     <article className="clip-card">
       <video
@@ -21,6 +29,7 @@ export function ClipCard({ clip }: { clip: ClipDetail }) {
         <span>{clip.ownerDisplayName}</span>
         <span>{formatDuration(clip.durationMs)}</span>
       </div>
+      {platformLabel && <span className="clip-card-source">vía {platformLabel}</span>}
     </article>
   );
 }

@@ -21,6 +21,7 @@ export function Nav() {
           {status === 'authenticated' && user ? (
             <>
               <Link to="/upload">Subir clip</Link>
+              <Link to="/import">Importar link</Link>
               <span className="app-nav-user">{user.displayName}</span>
               <button type="button" onClick={() => void handleLogout()}>
                 Cerrar sesión

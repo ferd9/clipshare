@@ -6,6 +6,7 @@ import { RegisterPage } from './auth/RegisterPage';
 import { AppShell } from './layout/AppShell';
 import { ClipFeed } from './clips/ClipFeed';
 import { UploadOwnClip } from './clips/UploadOwnClip';
+import { ImportFromLink } from './clips/ImportFromLink';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
             <Route path="/" element={<ClipFeed />} />
             <Route element={<ProtectedRoute />}>
               <Route path="/upload" element={<UploadOwnClip />} />
+              <Route path="/import" element={<ImportFromLink />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

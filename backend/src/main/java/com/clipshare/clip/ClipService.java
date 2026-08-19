@@ -1,5 +1,6 @@
 package com.clipshare.clip;
 
+import com.clipshare.clip.dto.ExternalCaptureMetadata;
 import com.clipshare.config.ApiException;
 import com.clipshare.storage.StorageService;
 import com.clipshare.user.User;
@@ -37,9 +38,49 @@ public class ClipService {
 
     @Transactional
     public Clip uploadOwnClip(User owner, MultipartFile file) {
+        validateEmailVerified(owner);
+        Clip clip = new Clip(owner, ClipSourceType.OWN_UPLOAD);
+        return storeAndEnqueue(clip, file);
+    }
+
+    // ---- API: captura desde link externo (docs/SPEC.md secciones 8-9, Caso B) ----
+
+    @Transactional
+    public Clip uploadExternalCapture(User owner, MultipartFile file, ExternalCaptureMetadata metadata) {
+        validateEmailVerified(owner);
+        validateExternalCaptureMetadata(metadata);
+
+        Clip clip = new Clip(owner, ClipSourceType.EXTERNAL_CAPTURE);
+        clip.setSourcePlatform(metadata.sourcePlatform());
+        clip.setSourceUrl(metadata.sourceUrl());
+        clip.setSourceExternalId(metadata.sourceExternalId());
+        clip.setSourceClipStartMs(metadata.sourceClipStartMs());
+        clip.setSourceClipEndMs(metadata.sourceClipEndMs());
+        clip.setSourceTitle(metadata.sourceTitle());
+        return storeAndEnqueue(clip, file);
+    }
+
+    private void validateEmailVerified(User owner) {
         if (!owner.isEmailVerified()) {
             throw ApiException.forbidden("EMAIL_NOT_VERIFIED", "Verificá tu email antes de publicar clips");
         }
+    }
+
+    private void validateExternalCaptureMetadata(ExternalCaptureMetadata metadata) {
+        if (metadata.sourcePlatform() == null || metadata.sourcePlatform() == ClipPlatform.NONE) {
+            throw ApiException.badRequest("INVALID_PLATFORM", "Plataforma de origen inválida (solo YouTube, Vimeo o Twitch)");
+        }
+        if (metadata.sourceUrl() == null || metadata.sourceUrl().isBlank()) {
+            throw ApiException.badRequest("INVALID_SOURCE_URL", "Falta la URL de origen");
+        }
+        int rangeMs = metadata.sourceClipEndMs() - metadata.sourceClipStartMs();
+        if (metadata.sourceClipStartMs() < 0 || rangeMs <= 0 || rangeMs > 20_000) {
+            throw ApiException.badRequest("INVALID_CLIP_RANGE", "El rango del clip debe ser mayor a 0 y de hasta 20s");
+        }
+    }
+
+    /** Común a upload propio y captura externa: valida el archivo, lo guarda y encola el job. */
+    private Clip storeAndEnqueue(Clip clip, MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw ApiException.badRequest("EMPTY_FILE", "El archivo está vacío");
         }
@@ -47,8 +88,6 @@ public class ClipService {
         if (contentType == null || !contentType.startsWith("video/")) {
             throw ApiException.badRequest("INVALID_FILE_TYPE", "El archivo debe ser un video");
         }
-
-        Clip clip = new Clip(owner, ClipSourceType.OWN_UPLOAD);
         clip.setMimeType(contentType);
         clip.setFileSizeBytes(file.getSize());
         clip = clipRepository.save(clip); // asigna el UUID (en memoria, ver User/UUID @GeneratedValue) antes del INSERT
