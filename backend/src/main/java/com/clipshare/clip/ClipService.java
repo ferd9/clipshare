@@ -27,18 +27,22 @@ public class ClipService {
     private final ClipRepository clipRepository;
     private final StorageService storageService;
     private final ClipQueuePublisher queuePublisher;
+    private final ClipRateLimitService rateLimitService;
 
-    public ClipService(ClipRepository clipRepository, StorageService storageService, ClipQueuePublisher queuePublisher) {
+    public ClipService(ClipRepository clipRepository, StorageService storageService,
+                        ClipQueuePublisher queuePublisher, ClipRateLimitService rateLimitService) {
         this.clipRepository = clipRepository;
         this.storageService = storageService;
         this.queuePublisher = queuePublisher;
+        this.rateLimitService = rateLimitService;
     }
 
     // ---- API: subida propia (docs/SPEC.md secciones 8-9, Caso A) ----
 
     @Transactional
     public Clip uploadOwnClip(User owner, MultipartFile file) {
-        validateEmailVerified(owner);
+        validateFile(file);
+        enforceUploadEligibility(owner);
         Clip clip = new Clip(owner, ClipSourceType.OWN_UPLOAD);
         return storeAndEnqueue(clip, file);
     }
@@ -47,7 +51,8 @@ public class ClipService {
 
     @Transactional
     public Clip uploadExternalCapture(User owner, MultipartFile file, ExternalCaptureMetadata metadata) {
-        validateEmailVerified(owner);
+        validateFile(file);
+        enforceUploadEligibility(owner);
         validateExternalCaptureMetadata(metadata);
 
         Clip clip = new Clip(owner, ClipSourceType.EXTERNAL_CAPTURE);
@@ -60,9 +65,25 @@ public class ClipService {
         return storeAndEnqueue(clip, file);
     }
 
-    private void validateEmailVerified(User owner) {
+    /**
+     * A diferencia de versiones anteriores del spec, una cuenta con email sin verificar NO
+     * está bloqueada para publicar — solo limitada a 3 clips/día (ver ClipRateLimitService
+     * y docs/SPEC.md sección 12). Bloquear del todo agregaba fricción a probar el producto;
+     * el límite alcanza para acotar el abuso de cuentas desechables.
+     */
+    private void enforceUploadEligibility(User owner) {
         if (!owner.isEmailVerified()) {
-            throw ApiException.forbidden("EMAIL_NOT_VERIFIED", "Verificá tu email antes de publicar clips");
+            rateLimitService.enforceUnverifiedDailyLimit(owner.getId());
+        }
+    }
+
+    private void validateFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw ApiException.badRequest("EMPTY_FILE", "El archivo está vacío");
+        }
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("video/")) {
+            throw ApiException.badRequest("INVALID_FILE_TYPE", "El archivo debe ser un video");
         }
     }
 
@@ -79,16 +100,9 @@ public class ClipService {
         }
     }
 
-    /** Común a upload propio y captura externa: valida el archivo, lo guarda y encola el job. */
+    /** Común a upload propio y captura externa: guarda el archivo (ya validado) y encola el job. */
     private Clip storeAndEnqueue(Clip clip, MultipartFile file) {
-        if (file == null || file.isEmpty()) {
-            throw ApiException.badRequest("EMPTY_FILE", "El archivo está vacío");
-        }
-        String contentType = file.getContentType();
-        if (contentType == null || !contentType.startsWith("video/")) {
-            throw ApiException.badRequest("INVALID_FILE_TYPE", "El archivo debe ser un video");
-        }
-        clip.setMimeType(contentType);
+        clip.setMimeType(file.getContentType());
         clip.setFileSizeBytes(file.getSize());
         clip = clipRepository.save(clip); // asigna el UUID (en memoria, ver User/UUID @GeneratedValue) antes del INSERT
 

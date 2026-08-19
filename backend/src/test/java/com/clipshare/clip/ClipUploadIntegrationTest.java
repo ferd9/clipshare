@@ -74,7 +74,7 @@ class ClipUploadIntegrationTest {
     ClipRepository clipRepository;
 
     @Test
-    void uploadRequiresAuthAndVerifiedEmailThenEnqueuesForProcessing() throws Exception {
+    void uploadRequiresAuthThenEnqueuesForProcessing() throws Exception {
         String email = "uploader-" + System.nanoTime() + "@example.com";
 
         mockMvc.perform(post("/api/auth/register").contentType("application/json")
@@ -97,14 +97,7 @@ class ClipUploadIntegrationTest {
         mockMvc.perform(multipart("/api/clips/upload").file(videoFile))
                 .andExpect(status().isUnauthorized());
 
-        // con token pero email sin verificar -> 403
-        mockMvc.perform(multipart("/api/clips/upload").file(videoFile)
-                        .header("Authorization", "Bearer " + accessToken))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("EMAIL_NOT_VERIFIED"));
-
-        verifyEmail(email);
-
+        // con email sin verificar igual puede subir (sección 12 del spec) -> 202
         String uploadResponse = mockMvc.perform(multipart("/api/clips/upload").file(videoFile)
                         .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isAccepted())
@@ -135,6 +128,47 @@ class ClipUploadIntegrationTest {
         mockMvc.perform(get("/api/clips/feed"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items").isEmpty());
+    }
+
+    @Test
+    void unverifiedEmailIsCappedAtThreeClipsPerDay() throws Exception {
+        String email = "capped-" + System.nanoTime() + "@example.com";
+        mockMvc.perform(post("/api/auth/register").contentType("application/json")
+                        .content("""
+                                {"email":"%s","password":"supersecret1","displayName":"Capped"}
+                                """.formatted(email)))
+                .andExpect(status().isCreated());
+        String accessToken = login(email);
+
+        MockMultipartFile videoFile = new MockMultipartFile("file", "clip.mp4", "video/mp4", "fake-bytes".getBytes());
+
+        for (int i = 1; i <= 3; i++) {
+            mockMvc.perform(multipart("/api/clips/upload").file(videoFile)
+                            .header("Authorization", "Bearer " + accessToken))
+                    .andExpect(status().isAccepted());
+        }
+
+        // 4ta del día -> 429, todavía sin verificar el email
+        mockMvc.perform(multipart("/api/clips/upload").file(videoFile)
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.error").value("DAILY_CREATE_LIMIT_EXCEEDED"));
+
+        // verificar el email levanta el límite
+        verifyEmail(email);
+        mockMvc.perform(multipart("/api/clips/upload").file(videoFile)
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isAccepted());
+    }
+
+    private String login(String email) throws Exception {
+        String loginResponse = mockMvc.perform(post("/api/auth/login").contentType("application/json")
+                        .content("""
+                                {"email":"%s","password":"supersecret1"}
+                                """.formatted(email)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(loginResponse).get("accessToken").asText();
     }
 
     private void verifyEmail(String email) {

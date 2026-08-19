@@ -495,8 +495,8 @@ CREATE TABLE likes (
 | POST | `/api/auth/password-reset/request` | No | Genera `password_reset_tokens`, envía email |
 | POST | `/api/auth/password-reset/confirm` | No | Consume el token, actualiza `password_hash` |
 | GET | `/api/users/me` | Sí | Perfil del usuario autenticado |
-| POST | `/api/clips/upload` | Sí (email verificado) | Sube archivo propio (multipart) → encola job de moderación + procesamiento |
-| POST | `/api/clips/from-capture` | Sí (email verificado) | Recibe el blob ya recortado en el navegador (desde `MediaRecorder`) + metadata de `source_*` → encola moderación |
+| POST | `/api/clips/upload` | Sí (sin verificar: máx. 3/día) | Sube archivo propio (multipart) → encola job de moderación + procesamiento |
+| POST | `/api/clips/from-capture` | Sí (sin verificar: máx. 3/día) | Recibe el blob ya recortado en el navegador (desde `MediaRecorder`) + metadata de `source_*` → encola moderación |
 | GET | `/api/clips/feed` | No | Lista clips con `moderation_status = PUBLISHED` y `visibility = PUBLIC`, paginado |
 | GET | `/api/clips/{id}` | No | Detalle de un clip publicado |
 | DELETE | `/api/clips/{id}` | Sí (dueño o admin) | Soft delete (`deleted_at`), no borra el archivo hasta vencer el periodo de retención |
@@ -782,7 +782,7 @@ Para Facebook e Instagram, implementar el resolver como stub (`FacebookEmbedReso
 
 - Registro con email + password (hash con BCrypt). Cuenta queda en `PENDING_VERIFICATION` hasta confirmar email.
 - Login devuelve JWT de acceso de corta duración (ej. 15-30 min) + refresh token de larga duración persistido (hasheado) en `refresh_tokens`, para poder revocar sesiones (logout, baneo, "cerrar sesión en todos los dispositivos").
-- `email_verified_at` es requisito para poder publicar clips (`/api/clips/upload` y `/api/clips/from-capture` devuelven 403 si no está verificado) — evita cuentas desechables creadas solo para saltarse la moderación.
+- Con `email_verified_at` sin completar, la cuenta igual puede publicar clips (`/api/clips/upload` y `/api/clips/from-capture`), pero limitada a 3 por día (ventana de 24h, contador en Redis compartido entre ambos endpoints) — devuelven 429 al superarla. Sin este límite, una cuenta desechable sin verificar podría usarse para spam/abuso a volumen; con él, sigue sirviendo para probar el producto sin fricción pero acota el daño. Verificar el email levanta el límite.
 - Middleware de Spring Security protege todos los endpoints salvo `/api/auth/**`, `/api/clips/feed`, `/api/clips/{id}` (GET), `/api/reports` (POST) y `/legal/**`.
 - Rol vía `users.role` (`USER` | `MODERATOR` | `ADMIN`, enum en la base de datos) para endpoints de moderación.
 

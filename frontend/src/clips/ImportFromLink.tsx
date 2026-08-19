@@ -1,11 +1,11 @@
 import { useState, type FormEvent } from 'react';
-import { useAuth } from '../auth/AuthContext';
 import { ClipEditor } from './ClipEditor';
 import { detectPlatform } from './platformDetection';
 import './clips.css';
 
+// Con el email sin verificar igual se puede importar (limitado a 3/día — ver el banner
+// en Nav.tsx, que ya avisa de esto en todas las páginas) — ver docs/SPEC.md sección 12.
 export function ImportFromLink() {
-  const { user } = useAuth();
   const [url, setUrl] = useState('');
   const [confirmed, setConfirmed] = useState<{ url: string; platform: string; externalId: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -19,17 +19,6 @@ export function ImportFromLink() {
     }
     setError(null);
     setConfirmed({ url: url.trim(), platform: detected.platform, externalId: detected.externalId });
-  }
-
-  if (user && !user.emailVerified) {
-    return (
-      <div className="upload-page">
-        <p className="clips-error">
-          Verificá tu email antes de importar clips. En dev, el link de verificación queda
-          en los logs del backend (LoggingEmailService).
-        </p>
-      </div>
-    );
   }
 
   if (confirmed) {

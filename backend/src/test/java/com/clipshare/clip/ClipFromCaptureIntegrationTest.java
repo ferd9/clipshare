@@ -150,4 +150,49 @@ class ClipFromCaptureIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("INVALID_CLIP_RANGE"));
     }
+
+    /** El límite de 3/día para cuentas sin verificar es un solo contador, no uno por endpoint. */
+    @Test
+    void dailyLimitForUnverifiedAccountsIsSharedAcrossBothUploadEndpoints() throws Exception {
+        String email = "shared-limit-" + System.nanoTime() + "@example.com";
+        mockMvc.perform(post("/api/auth/register").contentType("application/json")
+                        .content("""
+                                {"email":"%s","password":"supersecret1","displayName":"Shared"}
+                                """.formatted(email)))
+                .andExpect(status().isCreated());
+        String loginResponse = mockMvc.perform(post("/api/auth/login").contentType("application/json")
+                        .content("""
+                                {"email":"%s","password":"supersecret1"}
+                                """.formatted(email)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String accessToken = objectMapper.readTree(loginResponse).get("accessToken").asText();
+
+        MockMultipartFile ownFile = new MockMultipartFile("file", "clip.mp4", "video/mp4", "bytes".getBytes());
+        MockMultipartFile captureFile = new MockMultipartFile("file", "capture.webm", "video/webm", "bytes".getBytes());
+
+        mockMvc.perform(multipart("/api/clips/upload").file(ownFile)
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isAccepted());
+        mockMvc.perform(multipart("/api/clips/from-capture").file(captureFile)
+                        .header("Authorization", "Bearer " + accessToken)
+                        .param("sourceUrl", "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+                        .param("sourcePlatform", "YOUTUBE")
+                        .param("sourceClipStartMs", "0")
+                        .param("sourceClipEndMs", "5000"))
+                .andExpect(status().isAccepted());
+        mockMvc.perform(multipart("/api/clips/upload").file(ownFile)
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isAccepted());
+
+        // van 3 (2 upload + 1 from-capture): la 4ta, sea cual sea el endpoint, se corta.
+        mockMvc.perform(multipart("/api/clips/from-capture").file(captureFile)
+                        .header("Authorization", "Bearer " + accessToken)
+                        .param("sourceUrl", "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+                        .param("sourcePlatform", "YOUTUBE")
+                        .param("sourceClipStartMs", "0")
+                        .param("sourceClipEndMs", "5000"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.error").value("DAILY_CREATE_LIMIT_EXCEEDED"));
+    }
 }

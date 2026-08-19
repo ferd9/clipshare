@@ -37,7 +37,8 @@ export function Nav() {
       </div>
       {status === 'authenticated' && user && !user.emailVerified && (
         <p className="app-nav-banner">
-          Verificá tu email para poder publicar clips — en dev, el link queda en los logs del backend.
+          Con el email sin verificar podés crear hasta 3 clips por día — verificalo para
+          subir sin límite (en dev, el link queda en los logs del backend).
         </p>
       )}
     </header>

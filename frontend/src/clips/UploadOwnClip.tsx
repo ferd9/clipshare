@@ -1,13 +1,14 @@
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { extractErrorMessage, useAuth } from '../auth/AuthContext';
+import { extractErrorMessage } from '../auth/AuthContext';
 import { uploadClip } from './clipsApi';
 import './clips.css';
 
 const MAX_DURATION_MS = 20_000;
 
+// Con el email sin verificar igual se puede subir (limitado a 3/día — ver el banner en
+// Nav.tsx, que ya avisa de esto en todas las páginas) — ver docs/SPEC.md sección 12.
 export function UploadOwnClip() {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -50,18 +51,6 @@ export function UploadOwnClip() {
     } finally {
       setSubmitting(false);
     }
-  }
-
-  // email_verified_at es requisito para publicar (no para loguearse) — ver docs/SPEC.md sección 12.
-  if (user && !user.emailVerified) {
-    return (
-      <div className="upload-page">
-        <p className="clips-error">
-          Verificá tu email antes de subir clips. En dev, el link de verificación queda en
-          los logs del backend (LoggingEmailService).
-        </p>
-      </div>
-    );
   }
 
   if (done) {
