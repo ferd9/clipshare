@@ -65,7 +65,14 @@ public class FfmpegProcessor {
         }
         cmd.addAll(List.of("-t", formatSeconds(outputDurationMs)));
         cmd.addAll(List.of(
-                "-vf", "scale='min(1280,iw)':-2",
+                // trunc(.../2)*2 en el ANCHO, no solo "-2" en el alto: yuv420p exige ancho Y
+                // alto pares (submuestreo de croma) — libx264 tira "width not divisible by 2"
+                // y no escribe nada si el ancho de entrada es impar. Antes nunca pasaba porque
+                // el ancho salía siempre de sourceVideo.videoWidth (una resolución de pantalla,
+                // típicamente par); desde que el recorte del editor (docs/SPEC.md sección 9)
+                // puede pedir un ancho arbitrario calculado por proporción, cualquier archivo
+                // de entrada puede llegar con ancho impar.
+                "-vf", "scale='trunc(min(1280,iw)/2)*2':-2",
                 // pix_fmt yuv420p a propósito: sin esto, libx264 a veces preserva el formato
                 // de color de la fuente (ej. yuv444p/RGB en screen recordings o video sintético)
                 // y ningún navegador puede reproducir esos perfiles de H.264 — el <video> se

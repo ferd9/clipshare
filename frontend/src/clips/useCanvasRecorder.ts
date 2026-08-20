@@ -60,8 +60,13 @@ function computeCropRect(element: HTMLElement | null | undefined, sourceVideo: H
 
   const sx = Math.max(0, Math.round(leftRatio * sourceVideo.videoWidth));
   const sy = Math.max(0, Math.round(topRatio * sourceVideo.videoHeight));
-  const sWidth = Math.min(sourceVideo.videoWidth - sx, Math.round(widthRatio * sourceVideo.videoWidth));
-  const sHeight = Math.min(sourceVideo.videoHeight - sy, Math.round(heightRatio * sourceVideo.videoHeight));
+  // Ancho/alto pares: yuv420p (submuestreo de croma) los exige, y ffmpeg server-side rechaza
+  // directo un ancho impar sin escribir nada (ver el "-vf scale" en FfmpegProcessor, que
+  // ahora también se blinda del lado del backend — doble resguardo, no writes basura acá
+  // tampoco). toEven trunca hacia abajo, nunca se pasa del borde real del frame capturado.
+  const toEven = (n: number) => n - (n % 2);
+  const sWidth = toEven(Math.min(sourceVideo.videoWidth - sx, Math.round(widthRatio * sourceVideo.videoWidth)));
+  const sHeight = toEven(Math.min(sourceVideo.videoHeight - sy, Math.round(heightRatio * sourceVideo.videoHeight)));
   if (sWidth <= 0 || sHeight <= 0) return null;
 
   return { sx, sy, sWidth, sHeight };
@@ -152,15 +157,23 @@ export function useCanvasRecorder() {
     sourceVideoRef.current = sourceVideo;
     await sourceVideo.play();
 
-    const crop = computeCropRect(cropElement, sourceVideo);
+    // El tamaño del canvas se fija UNA vez (no se puede reajustar en caliente sin
+    // artefactos) a partir de esta primera medición. Pero el RECORTE que se dibuja en cada
+    // frame se recalcula en draw(), no acá — esta primera medición puede caer en un instante
+    // en que el layout todavía no llegó a su estado final "grabando" (ej. el botón "Empezar
+    // a grabar" recién está por cambiar a "Grabando…/Detener", que ocupa otro alto), y
+    // remedir en cada frame (barato: getBoundingClientRect() 30 veces por segundo no pesa
+    // nada) elimina esa categoría entera de bug de timing sin downside real.
+    const initialCrop = computeCropRect(cropElement, sourceVideo);
 
     const canvas = document.createElement('canvas');
-    canvas.width = crop ? crop.sWidth : sourceVideo.videoWidth || 1280;
-    canvas.height = crop ? crop.sHeight : sourceVideo.videoHeight || 720;
+    canvas.width = initialCrop ? initialCrop.sWidth : sourceVideo.videoWidth || 1280;
+    canvas.height = initialCrop ? initialCrop.sHeight : sourceVideo.videoHeight || 720;
     const ctx = canvas.getContext('2d');
 
     const draw = () => {
       if (ctx && sourceVideoRef.current) {
+        const crop = computeCropRect(cropElement, sourceVideoRef.current);
         if (crop) {
           ctx.drawImage(sourceVideoRef.current, crop.sx, crop.sy, crop.sWidth, crop.sHeight, 0, 0, canvas.width, canvas.height);
         } else {
