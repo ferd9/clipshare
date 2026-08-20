@@ -31,6 +31,15 @@ interface CropRect {
  * contador "Grabando…" y el botón "Detener" de fondo, porque getDisplayMedia comparte toda la
  * pestaña, no solo el reproductor.
  *
+ * Por PROPORCIÓN dentro del viewport (0 a 1), no multiplicando por devicePixelRatio: la
+ * primera versión asumía que el stream capturado mide exactamente
+ * `window.innerWidth/Height * devicePixelRatio` píxeles, pero Chrome no garantiza esa
+ * relación al compartir una pestaña (puede recapturar a otra resolución) — con esa cuenta el
+ * recorte quedaba mal ubicado en la práctica (recortaba de más o de menos según el caso).
+ * Calculando qué FRACCIÓN del viewport ocupa el reproductor y aplicando esa misma fracción a
+ * `sourceVideo.videoWidth/Height` (la resolución REAL que ya llegó, sea cual sea), el
+ * resultado no depende de esa relación en absoluto.
+ *
  * Asume que lo compartido es efectivamente "esta pestaña" en su posición actual de scroll
  * (lo que pide `preferCurrentTab: true`) — best-effort, no garantizado: si el usuario elige
  * compartir otra ventana/pantalla desde el selector nativo del navegador, el recorte va a
@@ -40,13 +49,19 @@ interface CropRect {
 function computeCropRect(element: HTMLElement | null | undefined, sourceVideo: HTMLVideoElement): CropRect | null {
   if (!element || !sourceVideo.videoWidth || !sourceVideo.videoHeight) return null;
   const rect = element.getBoundingClientRect();
-  if (rect.width <= 0 || rect.height <= 0) return null;
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  if (rect.width <= 0 || rect.height <= 0 || viewportWidth <= 0 || viewportHeight <= 0) return null;
 
-  const dpr = window.devicePixelRatio || 1;
-  const sx = Math.max(0, Math.round(rect.left * dpr));
-  const sy = Math.max(0, Math.round(rect.top * dpr));
-  const sWidth = Math.min(sourceVideo.videoWidth - sx, Math.round(rect.width * dpr));
-  const sHeight = Math.min(sourceVideo.videoHeight - sy, Math.round(rect.height * dpr));
+  const leftRatio = rect.left / viewportWidth;
+  const topRatio = rect.top / viewportHeight;
+  const widthRatio = rect.width / viewportWidth;
+  const heightRatio = rect.height / viewportHeight;
+
+  const sx = Math.max(0, Math.round(leftRatio * sourceVideo.videoWidth));
+  const sy = Math.max(0, Math.round(topRatio * sourceVideo.videoHeight));
+  const sWidth = Math.min(sourceVideo.videoWidth - sx, Math.round(widthRatio * sourceVideo.videoWidth));
+  const sHeight = Math.min(sourceVideo.videoHeight - sy, Math.round(heightRatio * sourceVideo.videoHeight));
   if (sWidth <= 0 || sHeight <= 0) return null;
 
   return { sx, sy, sWidth, sHeight };

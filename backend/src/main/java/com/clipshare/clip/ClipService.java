@@ -11,6 +11,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -131,7 +133,28 @@ public class ClipService {
         }
         clip.setFilePath(relativePath);
 
-        queuePublisher.enqueue(clip.getId());
+        // NUNCA encolar todavía acá: este método corre DENTRO de la transacción de
+        // uploadOwnClip/uploadExternalCapture (@Transactional), que recién confirma cuando
+        // ese método externo retorna. Si se encola en el momento, el worker (otra conexión,
+        // otro proceso, con su propio BRPOP bloqueante de baja latencia) puede llegar a
+        // buscar el clip en Postgres ANTES de que el INSERT esté confirmado — y con
+        // READ_COMMITTED no lo va a ver todavía: "Clip no encontrado", el worker lo marca
+        // FAILED y el clip nunca llega al feed. Encolar recién en afterCommit garantiza que
+        // la fila ya esté confirmada y visible para cualquier otra conexión cuando el
+        // mensaje aparezca en la cola.
+        UUID clipId = clip.getId();
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    queuePublisher.enqueue(clipId);
+                }
+            });
+        } else {
+            // No debería pasar en el flujo real (siempre corre dentro de un @Transactional),
+            // pero por robustez no se pierde el job si algún día se llama fuera de uno.
+            queuePublisher.enqueue(clipId);
+        }
         return clip;
     }
 
