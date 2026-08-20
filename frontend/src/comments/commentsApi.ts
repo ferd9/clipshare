@@ -1,7 +1,7 @@
 import { apiClient } from '../api/client';
 import type { PageResponse } from '../clips/types';
 import type { ReportReason } from '../legal/reportsApi';
-import type { AttachmentType, CommentSummary } from './types';
+import type { AttachmentType, CommentSummary, EmbedPlatform } from './types';
 
 export async function getComments(clipId: string, page = 0, size = 20): Promise<PageResponse<CommentSummary>> {
   const { data } = await apiClient.get<PageResponse<CommentSummary>>(`/api/clips/${clipId}/comments`, {
@@ -35,6 +35,21 @@ export async function uploadCommentImage(file: File): Promise<{ attachmentId: st
   const formData = new FormData();
   formData.append('file', file);
   const { data } = await apiClient.post<{ attachmentId: string }>('/api/comments/attachments/image', formData);
+  return data;
+}
+
+export interface LinkPreview {
+  platform: EmbedPlatform | null;
+  externalId: string | null;
+  title: string | null;
+  thumbnailUrl: string | null;
+  embeddable: boolean;
+}
+
+/** UX auxiliar (docs/SPEC.md sección 11.10) — vista previa mientras se escribe el
+ * comentario, antes de publicarlo. Requiere sesión (solo USER puede adjuntar links). */
+export async function getLinkPreview(url: string): Promise<LinkPreview> {
+  const { data } = await apiClient.get<LinkPreview>('/api/link-preview', { params: { url } });
   return data;
 }
 

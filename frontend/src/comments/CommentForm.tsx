@@ -1,8 +1,17 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { extractErrorMessage, useAuth } from '../auth/AuthContext';
-import { createComment, uploadCommentImage, type AttachmentPayload } from './commentsApi';
+import { createComment, getLinkPreview, uploadCommentImage, type AttachmentPayload, type LinkPreview } from './commentsApi';
 import { TurnstileWidget } from './TurnstileWidget';
 import type { AttachmentType, CommentSummary } from './types';
+
+const PLATFORM_LABEL: Record<string, string> = {
+  YOUTUBE: 'YouTube',
+  VIMEO: 'Vimeo',
+  TWITCH: 'Twitch',
+  TIKTOK: 'TikTok',
+  FACEBOOK: 'Facebook',
+  INSTAGRAM: 'Instagram',
+};
 
 interface CommentFormProps {
   clipId: string;
@@ -25,6 +34,8 @@ export function CommentForm({ clipId, parentCommentId, onCreated, onCancel }: Co
   const [imageFileName, setImageFileName] = useState<string | null>(null);
   const [referencedClipId, setReferencedClipId] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
+  const [linkPreview, setLinkPreview] = useState<LinkPreview | null>(null);
+  const [checkingLink, setCheckingLink] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +47,27 @@ export function CommentForm({ clipId, parentCommentId, onCreated, onCancel }: Co
     setImageFileName(null);
     setReferencedClipId('');
     setLinkUrl('');
+    setLinkPreview(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
+  /** Vista previa "en caliente" mientras se escribe (docs/SPEC.md sección 11.10,
+   * GET /api/link-preview) — se dispara al salir del campo, no en cada tecla. */
+  async function handleLinkBlur() {
+    const trimmed = linkUrl.trim();
+    if (!trimmed) {
+      setLinkPreview(null);
+      return;
+    }
+    setCheckingLink(true);
+    try {
+      const preview = await getLinkPreview(trimmed);
+      setLinkPreview(preview);
+    } catch {
+      setLinkPreview(null);
+    } finally {
+      setCheckingLink(false);
+    }
   }
 
   async function handleImageSelected(file: File) {
@@ -148,12 +179,29 @@ export function CommentForm({ clipId, parentCommentId, onCreated, onCancel }: Co
           )}
 
           {attachmentMode === 'LINK' && (
-            <input
-              type="url"
-              placeholder="https://…"
-              value={linkUrl}
-              onChange={(event) => setLinkUrl(event.target.value)}
-            />
+            <>
+              <input
+                type="url"
+                placeholder="https://…"
+                value={linkUrl}
+                onChange={(event) => {
+                  setLinkUrl(event.target.value);
+                  setLinkPreview(null);
+                }}
+                onBlur={() => void handleLinkBlur()}
+              />
+              {checkingLink && <span className="comment-attachment-status">Verificando…</span>}
+              {!checkingLink && linkPreview?.platform && (
+                <span className="comment-attachment-status">
+                  {linkPreview.embeddable
+                    ? `✓ Se va a mostrar embebido (${PLATFORM_LABEL[linkPreview.platform] ?? linkPreview.platform})`
+                    : `${PLATFORM_LABEL[linkPreview.platform] ?? linkPreview.platform} reconocido, sin vista embebida todavía`}
+                </span>
+              )}
+              {!checkingLink && linkPreview && !linkPreview.platform && (
+                <span className="comment-attachment-status">Se va a mostrar como link simple</span>
+              )}
+            </>
           )}
         </div>
       )}

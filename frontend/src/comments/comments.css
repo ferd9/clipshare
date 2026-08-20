@@ -269,3 +269,63 @@
   color: white !important;
   border: none !important;
 }
+
+.comment-embed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-width: 24rem;
+}
+
+.comment-embed-player {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: 0.4rem;
+  overflow: hidden;
+}
+
+.comment-embed-player-tiktok {
+  aspect-ratio: 9 / 16;
+  max-width: 16rem;
+}
+
+.comment-embed-player iframe,
+.comment-embed-player video {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.comment-link-card {
+  display: flex;
+  gap: 0.6rem;
+  max-width: 22rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+}
+
+.comment-link-card-thumb {
+  width: 4rem;
+  height: 4rem;
+  object-fit: cover;
+  border-radius: 0.3rem;
+  flex-shrink: 0;
+}
+
+.comment-link-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.comment-link-card-title {
+  margin: 0;
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

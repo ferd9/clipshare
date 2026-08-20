@@ -3,6 +3,7 @@ import { extractErrorMessage } from '../auth/AuthContext';
 import { mediaUrl } from '../clips/clipsApi';
 import { deleteComment, reportComment, type ReportCommentPayload } from './commentsApi';
 import { CommentForm } from './CommentForm';
+import { CommentLinkPreview } from './CommentLinkPreview';
 import { ExternalLinkGuard } from './ExternalLinkGuard';
 import type { CommentSummary } from './types';
 
@@ -96,11 +97,7 @@ export function CommentItem({ clipId, comment, onReply, onDeleted }: CommentItem
           {attachment.type === 'CLIP_REFERENCE' && attachment.referencedClipId && (
             <span className="comment-attachment-clip-ref">📎 Clip referenciado: {attachment.referencedClipId}</span>
           )}
-          {attachment.type === 'LINK' && attachment.linkUrl && (
-            <ExternalLinkGuard url={attachment.linkUrl} onReport={openReportForLink}>
-              🔗 {attachment.linkDomain ?? attachment.linkUrl}
-            </ExternalLinkGuard>
-          )}
+          {attachment.type === 'LINK' && <CommentLinkPreview attachment={attachment} onReport={openReportForLink} />}
         </div>
       ))}
 

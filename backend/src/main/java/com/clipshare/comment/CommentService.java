@@ -24,10 +24,14 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Orquesta la creación/listado/borrado de comentarios (docs/SPEC.md sección 11): valida el
@@ -39,12 +43,18 @@ public class CommentService {
 
     private static final int MAX_PAGE_SIZE = 50;
 
+    // Solo URLs con esquema explícito (http/https) — a diferencia del URL_PATTERN de
+    // ContentFilterService (que también marca "www.algo" sin esquema como señal de riesgo),
+    // acá necesitamos una URL que java.net.URI pueda resolver a host de forma confiable.
+    private static final Pattern LOOSE_URL_PATTERN = Pattern.compile("(?i)https?://\\S+");
+
     private final CommentRepository commentRepository;
     private final ClipRepository clipRepository;
     private final CommentAttachmentRepository attachmentRepository;
     private final CommentAttachmentService attachmentService;
     private final BlockedLinkDomainRepository blockedLinkDomainRepository;
     private final LinkSafetyService linkSafetyService;
+    private final VideoEmbedResolverService videoEmbedResolverService;
     private final CommentRateLimitService rateLimitService;
     private final ContentFilterService contentFilterService;
     private final ShadowBanService shadowBanService;
@@ -53,25 +63,28 @@ public class CommentService {
     public CommentService(CommentRepository commentRepository, ClipRepository clipRepository,
                            CommentAttachmentRepository attachmentRepository, CommentAttachmentService attachmentService,
                            BlockedLinkDomainRepository blockedLinkDomainRepository, LinkSafetyService linkSafetyService,
-                           CommentRateLimitService rateLimitService, ContentFilterService contentFilterService,
-                           ShadowBanService shadowBanService, TurnstileClient turnstileClient) {
+                           VideoEmbedResolverService videoEmbedResolverService, CommentRateLimitService rateLimitService,
+                           ContentFilterService contentFilterService, ShadowBanService shadowBanService,
+                           TurnstileClient turnstileClient) {
         this.commentRepository = commentRepository;
         this.clipRepository = clipRepository;
         this.attachmentRepository = attachmentRepository;
         this.attachmentService = attachmentService;
         this.blockedLinkDomainRepository = blockedLinkDomainRepository;
         this.linkSafetyService = linkSafetyService;
+        this.videoEmbedResolverService = videoEmbedResolverService;
         this.rateLimitService = rateLimitService;
         this.contentFilterService = contentFilterService;
         this.shadowBanService = shadowBanService;
         this.turnstileClient = turnstileClient;
     }
 
-    /** Resultado de validar un AttachmentRequest, ya resuelto a las entidades reales — separado
-     * de la persistencia porque la validación corre ANTES de que el Comment exista (para
-     * fallar rápido sin gastar el cupo de rate-limit en un adjunto inválido). */
+    /** Resultado de validar un AttachmentRequest (o de detectar un link embebible suelto en el
+     * body, ver detectEmbeddableLooseLinks), ya resuelto a las entidades reales — separado de
+     * la persistencia porque la validación corre ANTES de que el Comment exista (para fallar
+     * rápido sin gastar el cupo de rate-limit en un adjunto inválido). */
     private record ResolvedAttachment(AttachmentType type, CommentAttachment pendingImage, Clip referencedClip,
-                                       String linkUrl, String linkDomain) {
+                                       String linkUrl, String linkDomain, EmbedResolution embed) {
     }
 
     public Page<Comment> listComments(UUID clipId, int page, int size, UUID viewerUserId, UUID viewerAnonSessionId) {
@@ -122,7 +135,14 @@ public class CommentService {
 
         // Validar los adjuntos ANTES de gastar el cupo de rate-limit — que un adjunto
         // inválido (imagen ajena, clip no publicado, URL rota) falle rápido y gratis.
-        List<ResolvedAttachment> resolvedAttachments = validateAttachments(user, request.attachments());
+        List<ResolvedAttachment> resolvedAttachments = new ArrayList<>(validateAttachments(user, request.attachments()));
+        // Un link de plataforma de video reconocida escrito suelto en el body también se
+        // promueve a adjunto LINK (docs/SPEC.md sección 11.10, nota final) — solo para USER:
+        // un GUEST no puede tener ninguna fila en comment_attachments (chk a nivel de API Y
+        // trigger de base de datos), así que no tendría sentido intentarlo para GUEST.
+        if (user != null) {
+            resolvedAttachments.addAll(detectEmbeddableLooseLinks(request.body(), resolvedAttachments));
+        }
         boolean linkDomainBlocked = resolvedAttachments.stream()
                 .filter(a -> a.type() == AttachmentType.LINK)
                 .anyMatch(a -> isLinkDomainBlocked(a.linkDomain()));
@@ -176,7 +196,7 @@ public class CommentService {
                         throw ApiException.badRequest("MISSING_ATTACHMENT_ID", "Falta el id del adjunto de imagen");
                     }
                     CommentAttachment pending = attachmentService.resolvePendingImage(spec.attachmentId(), user);
-                    resolved.add(new ResolvedAttachment(AttachmentType.IMAGE, pending, null, null, null));
+                    resolved.add(new ResolvedAttachment(AttachmentType.IMAGE, pending, null, null, null, null));
                 }
                 case CLIP_REFERENCE -> {
                     if (spec.referencedClipId() == null) {
@@ -186,15 +206,48 @@ public class CommentService {
                             .filter(c -> !c.isDeleted() && c.getModerationStatus() == ModerationStatus.PUBLISHED)
                             .orElseThrow(() -> ApiException.badRequest("REFERENCED_CLIP_NOT_FOUND",
                                     "El clip referenciado no existe o no está publicado"));
-                    resolved.add(new ResolvedAttachment(AttachmentType.CLIP_REFERENCE, null, referenced, null, null));
+                    resolved.add(new ResolvedAttachment(AttachmentType.CLIP_REFERENCE, null, referenced, null, null, null));
                 }
                 case LINK -> {
                     String domain = extractDomain(spec.linkUrl());
-                    resolved.add(new ResolvedAttachment(AttachmentType.LINK, null, null, spec.linkUrl(), domain));
+                    EmbedResolution embed = videoEmbedResolverService.resolve(spec.linkUrl());
+                    resolved.add(new ResolvedAttachment(AttachmentType.LINK, null, null, spec.linkUrl(), domain, embed));
                 }
             }
         }
         return resolved;
+    }
+
+    /** docs/SPEC.md sección 11.10, nota final: una URL de plataforma de video reconocida
+     * escrita suelta en el texto se promueve igual a un adjunto LINK — así el renderizado
+     * siempre pasa por el mismo camino, venga del selector estructurado o del texto libre.
+     * Un link NO reconocido como plataforma de video no se promueve (sigue siendo solo texto
+     * guardado en {@code body}; el frontend lo renderiza como link simple con su interstitial,
+     * sin necesidad de una fila de adjunto para eso). */
+    private List<ResolvedAttachment> detectEmbeddableLooseLinks(String body, List<ResolvedAttachment> alreadyStructured) {
+        Set<String> alreadyLinked = new HashSet<>();
+        for (ResolvedAttachment a : alreadyStructured) {
+            if (a.type() == AttachmentType.LINK) alreadyLinked.add(a.linkUrl());
+        }
+
+        List<ResolvedAttachment> found = new ArrayList<>();
+        Matcher matcher = LOOSE_URL_PATTERN.matcher(body);
+        while (matcher.find()) {
+            String url = matcher.group();
+            if (!alreadyLinked.add(url)) continue; // ya cubierto por un adjunto estructurado, o duplicado en el propio texto
+
+            String domain;
+            try {
+                domain = extractDomain(url);
+            } catch (ApiException e) {
+                continue; // URL suelta mal formada: no bloquea la creación del comentario, simplemente no se promueve
+            }
+            EmbedResolution embed = videoEmbedResolverService.resolve(url);
+            if (embed.platform() != null) {
+                found.add(new ResolvedAttachment(AttachmentType.LINK, null, null, url, domain, embed));
+            }
+        }
+        return found;
     }
 
     private void persistAttachments(Comment comment, User user, List<ResolvedAttachment> resolved) {
@@ -206,13 +259,16 @@ public class CommentService {
                 }
                 case CLIP_REFERENCE ->
                         attachmentRepository.save(CommentAttachment.forClipReference(comment, user, r.referencedClip()));
-                case LINK -> attachmentRepository.save(CommentAttachment.forLink(comment, user, r.linkUrl(), r.linkDomain()));
+                case LINK -> attachmentRepository.save(
+                        CommentAttachment.forLink(comment, user, r.linkUrl(), r.linkDomain(), r.embed()));
             }
         }
     }
 
     /** No se re-aloja ni se descarga el destino (docs/SPEC.md sección 11.9) — solo se valida
-     * que sea una URL http(s) bien formada y se extrae el dominio para el chequeo de bloqueo. */
+     * que sea una URL http(s) bien formada y se extrae el dominio para el chequeo de bloqueo.
+     * Sin "www."/"m." iniciales — mismo criterio que VideoEmbedResolverService.normalizeHost,
+     * para que bloquear "youtube.com" también alcance a "www.youtube.com". */
     private String extractDomain(String url) {
         if (url == null || url.isBlank()) {
             throw ApiException.badRequest("MISSING_LINK_URL", "Falta la URL del enlace");
@@ -224,7 +280,10 @@ public class CommentService {
             if (scheme == null || (!scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https")) || host == null) {
                 throw ApiException.badRequest("INVALID_LINK_URL", "El enlace debe ser una URL http(s) válida");
             }
-            return host.toLowerCase(Locale.ROOT);
+            String normalized = host.toLowerCase(Locale.ROOT);
+            if (normalized.startsWith("www.")) normalized = normalized.substring(4);
+            if (normalized.startsWith("m.")) normalized = normalized.substring(2);
+            return normalized;
         } catch (URISyntaxException e) {
             throw ApiException.badRequest("INVALID_LINK_URL", "El enlace debe ser una URL http(s) válida");
         }

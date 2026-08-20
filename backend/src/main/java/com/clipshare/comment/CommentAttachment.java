@@ -57,7 +57,20 @@ public class CommentAttachment {
     @Column(name = "link_domain")
     private String linkDomain;
 
-    // embed_* (Fase 6c): sin usar todavía, ver docs/SPEC.md sección 11.10.
+    // embed_* (Fase 6c, docs/SPEC.md sección 11.10) — solo aplica si attachmentType = LINK.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "embed_platform", length = 20)
+    private EmbedPlatform embedPlatform;
+
+    @Column(name = "embed_external_id")
+    private String embedExternalId;
+
+    @Column(name = "embed_title")
+    private String embedTitle;
+
+    @Column(name = "embed_thumbnail_url")
+    private String embedThumbnailUrl;
+
     @Column(name = "is_embeddable", nullable = false)
     private boolean embeddable = false;
 
@@ -101,13 +114,23 @@ public class CommentAttachment {
         return attachment;
     }
 
-    public static CommentAttachment forLink(Comment comment, User uploadedBy, String linkUrl, String linkDomain) {
+    /** @param embed resultado de VideoEmbedResolverService — null o "no reconocida" deja el
+     * link como un enlace simple (sin embed), igual que cualquier otro dominio no reconocido. */
+    public static CommentAttachment forLink(Comment comment, User uploadedBy, String linkUrl, String linkDomain,
+                                             EmbedResolution embed) {
         CommentAttachment attachment = new CommentAttachment();
         attachment.comment = comment;
         attachment.uploadedBy = uploadedBy;
         attachment.attachmentType = AttachmentType.LINK;
         attachment.linkUrl = linkUrl;
         attachment.linkDomain = linkDomain;
+        if (embed != null && embed.platform() != null) {
+            attachment.embedPlatform = embed.platform();
+            attachment.embedExternalId = embed.externalId();
+            attachment.embedTitle = embed.title();
+            attachment.embedThumbnailUrl = embed.thumbnailUrl();
+            attachment.embeddable = embed.embeddable();
+        }
         // El link en sí no pasa por un pipeline de moderación asíncrono (a diferencia de la
         // imagen) — el chequeo de dominio bloqueado es síncrono y afecta el status del
         // comentario, no el del adjunto (ver CommentService/LinkSafetyService).
@@ -162,6 +185,22 @@ public class CommentAttachment {
 
     public String getLinkDomain() {
         return linkDomain;
+    }
+
+    public EmbedPlatform getEmbedPlatform() {
+        return embedPlatform;
+    }
+
+    public String getEmbedExternalId() {
+        return embedExternalId;
+    }
+
+    public String getEmbedTitle() {
+        return embedTitle;
+    }
+
+    public String getEmbedThumbnailUrl() {
+        return embedThumbnailUrl;
     }
 
     public boolean isEmbeddable() {
