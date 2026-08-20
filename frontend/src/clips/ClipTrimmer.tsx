@@ -8,6 +8,9 @@ function formatSeconds(ms: number): string {
 interface ClipTrimmerProps {
   blob: Blob;
   previewUrl: string;
+  /** Cuánto duró realmente la grabación (recorder.elapsedMs) — ver useClipTrimmer sobre por
+   * qué no se usa video.duration para esto. */
+  recordedDurationMs: number;
   maxDurationMs: number;
   onConfirm: (trimStartMs: number, trimEndMs: number) => void;
   onDiscard: () => void;
@@ -20,8 +23,8 @@ interface ClipTrimmerProps {
  * El recorte final lo aplica ffmpeg server-side (ver FfmpegProcessor/ClipProcessingWorker)
  * sobre ese mismo archivo ya subido.
  */
-export function ClipTrimmer({ blob, previewUrl, maxDurationMs, onConfirm, onDiscard }: ClipTrimmerProps) {
-  const trimmer = useClipTrimmer(blob, maxDurationMs);
+export function ClipTrimmer({ blob, previewUrl, recordedDurationMs, maxDurationMs, onConfirm, onDiscard }: ClipTrimmerProps) {
+  const trimmer = useClipTrimmer(blob, recordedDurationMs, maxDurationMs);
   const previewRef = useRef<HTMLVideoElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<'start' | 'end' | null>(null);

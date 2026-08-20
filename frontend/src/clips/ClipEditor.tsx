@@ -38,8 +38,14 @@ export function ClipEditor({ sourceUrl, sourcePlatform, sourceExternalId, onCanc
     await recorder.start(playerContainerRef.current);
   }
 
-  async function handleUpload(trimStartMs: number, trimEndMs: number) {
+  async function handleUpload(rawTrimStartMs: number, rawTrimEndMs: number) {
     if (!recorder.blob) return;
+    // Los handles se arrastran con matemática de posición (ratio * duración), así que llegan
+    // como decimales — el backend espera enteros (@RequestParam int), y un "1234.5" ahí
+    // rompe con 400 "Valor inválido para 'sourceClipStartMs'".
+    const trimStartMs = Math.round(rawTrimStartMs);
+    const trimEndMs = Math.round(rawTrimEndMs);
+
     setUploading(true);
     setUploadError(null);
     try {
@@ -113,6 +119,7 @@ export function ClipEditor({ sourceUrl, sourcePlatform, sourceExternalId, onCanc
           <ClipTrimmer
             blob={recorder.blob}
             previewUrl={recorder.previewUrl ?? ''}
+            recordedDurationMs={recorder.elapsedMs}
             maxDurationMs={recorder.maxDurationMs}
             onDiscard={recorder.reset}
             onConfirm={(trimStartMs, trimEndMs) => void handleUpload(trimStartMs, trimEndMs)}

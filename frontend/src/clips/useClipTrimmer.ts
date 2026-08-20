@@ -26,18 +26,28 @@ const INITIAL_STATE: TrimmerState = {
  * hecha (el blob que devuelve useCanvasRecorder) — nunca del video fuente, ver
  * ClipTrimmer.tsx. Las miniaturas salen de sembrar un <video> oculto con el propio blob y
  * sacar snapshots a intervalos regulares; no requiere descargar ni procesar nada server-side.
+ *
+ * @param recordedDurationMs cuánto duró realmente la grabación (recorder.elapsedMs de
+ * useCanvasRecorder) — se usa como fuente de verdad para la duración total en vez de
+ * `video.duration`: los blobs que arma MediaRecorder son WebM sin duración en el header (es
+ * un formato pensado para streaming), así que el navegador reporta `Infinity` hasta forzar
+ * una búsqueda cerca del final — un truco frágil que además dejaba `durationMs` en
+ * `Infinity`/`NaN` y terminaba mandando "NaN" al backend. Achicar el <video> oculto a "solo
+ * buscar frames puntuales" evita todo ese problema: buscar un currentTime específico no
+ * necesita saber la duración total de antemano.
  */
-export function useClipTrimmer(blob: Blob | null, maxDurationMs: number) {
+export function useClipTrimmer(blob: Blob | null, recordedDurationMs: number, maxDurationMs: number) {
   const [state, setState] = useState<TrimmerState>(INITIAL_STATE);
 
   useEffect(() => {
-    if (!blob) {
+    if (!blob || recordedDurationMs <= 0) {
       setState(INITIAL_STATE);
       return;
     }
 
     let cancelled = false;
     const url = URL.createObjectURL(blob);
+    const durationMs = Math.round(recordedDurationMs);
 
     (async () => {
       const video = document.createElement('video');
@@ -51,17 +61,23 @@ export function useClipTrimmer(blob: Blob | null, maxDurationMs: number) {
       });
       if (cancelled) return;
 
-      const durationMs = Math.round((video.duration || 0) * 1000);
       const canvas = document.createElement('canvas');
       canvas.width = FILMSTRIP_WIDTH;
       canvas.height = FILMSTRIP_HEIGHT;
       const ctx = canvas.getContext('2d');
       const frames: string[] = [];
 
-      for (let i = 0; i < FILMSTRIP_FRAMES && durationMs > 0; i++) {
-        const targetSeconds = (durationMs * i) / FILMSTRIP_FRAMES / 1000;
+      for (let i = 0; i < FILMSTRIP_FRAMES; i++) {
+        // Un pelín antes del final de cada tramo (0.95x), no justo en el límite — algunos
+        // navegadores clampean un seek exactamente igual a la duración real al frame anterior
+        // de forma inconsistente.
+        const targetSeconds = (durationMs * (i + 0.95)) / FILMSTRIP_FRAMES / 1000;
         await new Promise<void>((resolve) => {
-          video.onseeked = () => resolve();
+          const onSeeked = () => {
+            video.removeEventListener('seeked', onSeeked);
+            resolve();
+          };
+          video.addEventListener('seeked', onSeeked);
           video.currentTime = targetSeconds;
         });
         if (cancelled) return;
@@ -79,8 +95,17 @@ export function useClipTrimmer(blob: Blob | null, maxDurationMs: number) {
       });
     })().catch(() => {
       // Sin filmstrip (blob raro/no seekeable todavía) el recorte igual funciona, solo sin
-      // miniaturas — no vale la pena bloquear todo el flujo por esto.
-      if (!cancelled) setState((s) => ({ ...s, ready: true }));
+      // miniaturas — la duración real ya la sabíamos de antemano (recordedDurationMs), así
+      // que el rango de recorte sigue siendo correcto aunque falle esto.
+      if (!cancelled) {
+        setState({
+          ready: true,
+          durationMs,
+          filmstrip: [],
+          trimStartMs: 0,
+          trimEndMs: Math.min(durationMs, maxDurationMs),
+        });
+      }
     });
 
     return () => {
@@ -88,7 +113,7 @@ export function useClipTrimmer(blob: Blob | null, maxDurationMs: number) {
       URL.revokeObjectURL(url);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blob]);
+  }, [blob, recordedDurationMs]);
 
   function setTrimStartMs(ms: number) {
     setState((s) => ({
