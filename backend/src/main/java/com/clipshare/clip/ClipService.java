@@ -54,6 +54,7 @@ public class ClipService {
         validateFile(file);
         enforceUploadEligibility(owner);
         validateExternalCaptureMetadata(metadata);
+        validateTrimRange(metadata);
 
         Clip clip = new Clip(owner, ClipSourceType.EXTERNAL_CAPTURE);
         clip.setSourcePlatform(metadata.sourcePlatform());
@@ -62,6 +63,8 @@ public class ClipService {
         clip.setSourceClipStartMs(metadata.sourceClipStartMs());
         clip.setSourceClipEndMs(metadata.sourceClipEndMs());
         clip.setSourceTitle(metadata.sourceTitle());
+        clip.setTrimStartMs(metadata.trimStartMs());
+        clip.setTrimEndMs(metadata.trimEndMs());
         return storeAndEnqueue(clip, file);
     }
 
@@ -97,6 +100,20 @@ public class ClipService {
         int rangeMs = metadata.sourceClipEndMs() - metadata.sourceClipStartMs();
         if (metadata.sourceClipStartMs() < 0 || rangeMs <= 0 || rangeMs > 20_000) {
             throw ApiException.badRequest("INVALID_CLIP_RANGE", "El rango del clip debe ser mayor a 0 y de hasta 20s");
+        }
+    }
+
+    /** trimEndMs nulo = "hasta el final de la grabación", válido (ver ExternalCaptureMetadata).
+     * Con valor, debe ser un rango real de hasta 20s dentro del propio archivo subido. */
+    private void validateTrimRange(ExternalCaptureMetadata metadata) {
+        if (metadata.trimStartMs() < 0) {
+            throw ApiException.badRequest("INVALID_TRIM_RANGE", "El recorte no puede empezar antes del inicio de la grabación");
+        }
+        if (metadata.trimEndMs() != null) {
+            int rangeMs = metadata.trimEndMs() - metadata.trimStartMs();
+            if (rangeMs <= 0 || rangeMs > 20_000) {
+                throw ApiException.badRequest("INVALID_TRIM_RANGE", "El recorte debe ser mayor a 0 y de hasta 20s");
+            }
         }
     }
 
@@ -157,9 +174,18 @@ public class ClipService {
 
     // ---- Worker: transiciones de estado del pipeline (docs/SPEC.md sección 9-10) ----
 
+    public record TrimRange(Integer startMs, Integer endMs) {
+    }
+
     @Transactional
     public String getRawFilePath(UUID clipId) {
         return getOrThrow(clipId).getFilePath();
+    }
+
+    @Transactional
+    public TrimRange getTrimRange(UUID clipId) {
+        Clip clip = getOrThrow(clipId);
+        return new TrimRange(clip.getTrimStartMs(), clip.getTrimEndMs());
     }
 
     @Transactional

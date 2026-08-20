@@ -18,6 +18,40 @@ const INITIAL_STATE: CanvasRecorderState = {
   error: null,
 };
 
+interface CropRect {
+  sx: number;
+  sy: number;
+  sWidth: number;
+  sHeight: number;
+}
+
+/**
+ * Recorta el frame capturado a la posición en pantalla de `element` (el reproductor), en vez
+ * de grabar la pestaña entera — sin esto, el clip final incluye el header de ClipShare, el
+ * contador "Grabando…" y el botón "Detener" de fondo, porque getDisplayMedia comparte toda la
+ * pestaña, no solo el reproductor.
+ *
+ * Asume que lo compartido es efectivamente "esta pestaña" en su posición actual de scroll
+ * (lo que pide `preferCurrentTab: true`) — best-effort, no garantizado: si el usuario elige
+ * compartir otra ventana/pantalla desde el selector nativo del navegador, el recorte va a
+ * quedar mal ubicado. Por eso se calcula una sola vez al arrancar (no en cada frame) y se
+ * descarta (cae a grabar el frame completo) si da un rectángulo degenerado.
+ */
+function computeCropRect(element: HTMLElement | null | undefined, sourceVideo: HTMLVideoElement): CropRect | null {
+  if (!element || !sourceVideo.videoWidth || !sourceVideo.videoHeight) return null;
+  const rect = element.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return null;
+
+  const dpr = window.devicePixelRatio || 1;
+  const sx = Math.max(0, Math.round(rect.left * dpr));
+  const sy = Math.max(0, Math.round(rect.top * dpr));
+  const sWidth = Math.min(sourceVideo.videoWidth - sx, Math.round(rect.width * dpr));
+  const sHeight = Math.min(sourceVideo.videoHeight - sy, Math.round(rect.height * dpr));
+  if (sWidth <= 0 || sHeight <= 0) return null;
+
+  return { sx, sy, sWidth, sHeight };
+}
+
 /**
  * Graba hasta 20s de lo que el usuario comparte de su propia pestaña (getDisplayMedia) y lo
  * redibuja frame a frame en un <canvas> oculto antes de pasarlo a MediaRecorder — igual que
@@ -68,7 +102,7 @@ export function useCanvasRecorder() {
 
   useEffect(() => () => releaseCaptureResources(), [releaseCaptureResources]);
 
-  const start = useCallback(async () => {
+  const start = useCallback(async (cropElement?: HTMLElement | null) => {
     setState((s) => ({ ...s, error: null }));
 
     let displayStream: MediaStream;
@@ -88,14 +122,20 @@ export function useCanvasRecorder() {
     sourceVideoRef.current = sourceVideo;
     await sourceVideo.play();
 
+    const crop = computeCropRect(cropElement, sourceVideo);
+
     const canvas = document.createElement('canvas');
-    canvas.width = sourceVideo.videoWidth || 1280;
-    canvas.height = sourceVideo.videoHeight || 720;
+    canvas.width = crop ? crop.sWidth : sourceVideo.videoWidth || 1280;
+    canvas.height = crop ? crop.sHeight : sourceVideo.videoHeight || 720;
     const ctx = canvas.getContext('2d');
 
     const draw = () => {
       if (ctx && sourceVideoRef.current) {
-        ctx.drawImage(sourceVideoRef.current, 0, 0, canvas.width, canvas.height);
+        if (crop) {
+          ctx.drawImage(sourceVideoRef.current, crop.sx, crop.sy, crop.sWidth, crop.sHeight, 0, 0, canvas.width, canvas.height);
+        } else {
+          ctx.drawImage(sourceVideoRef.current, 0, 0, canvas.width, canvas.height);
+        }
       }
       rafIdRef.current = requestAnimationFrame(draw);
     };

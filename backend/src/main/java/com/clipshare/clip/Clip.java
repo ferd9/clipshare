@@ -45,6 +45,15 @@ public class Clip {
     @Column(name = "source_title")
     private String sourceTitle;
 
+    // Recorte dentro de la GRABACIÓN propia (nunca del video fuente) elegido en el editor
+    // client-side, ver docs/SPEC.md sección 9 y V7__clip_trim.sql. NULL = usar el archivo
+    // completo (comportamiento previo, y siempre el caso para OWN_UPLOAD).
+    @Column(name = "trim_start_ms")
+    private Integer trimStartMs;
+
+    @Column(name = "trim_end_ms")
+    private Integer trimEndMs;
+
     @Column(name = "file_path")
     private String filePath;
 
@@ -181,6 +190,22 @@ public class Clip {
 
     public void setSourceTitle(String sourceTitle) {
         this.sourceTitle = sourceTitle;
+    }
+
+    public Integer getTrimStartMs() {
+        return trimStartMs;
+    }
+
+    public void setTrimStartMs(Integer trimStartMs) {
+        this.trimStartMs = trimStartMs;
+    }
+
+    public Integer getTrimEndMs() {
+        return trimEndMs;
+    }
+
+    public void setTrimEndMs(Integer trimEndMs) {
+        this.trimEndMs = trimEndMs;
     }
 
     public String getFilePath() {

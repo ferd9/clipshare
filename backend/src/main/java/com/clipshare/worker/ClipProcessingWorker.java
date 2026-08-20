@@ -121,7 +121,15 @@ public class ClipProcessingWorker implements SmartLifecycle {
         Path workVideo = storageService.resolveLocalPath("work/" + clipId + "/final.mp4");
         Path workThumb = storageService.resolveLocalPath("work/" + clipId + "/thumb.jpg");
 
-        FfmpegProcessor.ProcessResult result = ffmpegProcessor.process(rawPath, workVideo, workThumb, MAX_DURATION_MS);
+        // Recorte elegido en el editor client-side (docs/SPEC.md sección 9) — NULL en ambos
+        // (siempre el caso para OWN_UPLOAD) preserva el comportamiento previo: todo el
+        // archivo, desde el arranque, acotado a 20s.
+        ClipService.TrimRange trim = clipService.getTrimRange(clipId);
+        long trimStartMs = trim.startMs() != null ? trim.startMs() : 0;
+        long requestedDurationMs = trim.endMs() != null ? (trim.endMs() - trimStartMs) : MAX_DURATION_MS;
+        long outputDurationMs = Math.min(requestedDurationMs, MAX_DURATION_MS);
+
+        FfmpegProcessor.ProcessResult result = ffmpegProcessor.process(rawPath, workVideo, workThumb, trimStartMs, outputDurationMs);
         String contentHash = fileHasher.sha256Hex(workVideo);
 
         Optional<Clip> duplicate = clipService.findByContentHash(contentHash)

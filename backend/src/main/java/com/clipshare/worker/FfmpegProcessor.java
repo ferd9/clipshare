@@ -41,16 +41,29 @@ public class FfmpegProcessor {
     public record ProcessResult(long durationMs, Integer width, Integer height) {
     }
 
-    public ProcessResult process(Path input, Path outputVideo, Path outputThumbnail, long maxDurationMs) throws IOException {
+    /**
+     * @param trimStartMs offset dentro de {@code input} desde donde arranca el clip final —
+     *                     0 para OWN_UPLOAD (todo el archivo); en EXTERNAL_CAPTURE puede ser
+     *                     >0 si el usuario recortó su grabación en el editor (docs/SPEC.md
+     *                     sección 9, V7__clip_trim.sql).
+     * @param outputDurationMs duración deseada del clip final (ya acotada a ≤20s por el
+     *                          caller) — si el archivo de entrada es más corto que
+     *                          {@code trimStartMs + outputDurationMs}, ffmpeg simplemente
+     *                          corta en EOF, no hace falta manejarlo como caso especial.
+     */
+    public ProcessResult process(Path input, Path outputVideo, Path outputThumbnail,
+                                  long trimStartMs, long outputDurationMs) throws IOException {
         Files.createDirectories(outputVideo.getParent());
         Files.createDirectories(outputThumbnail.getParent());
 
-        ProbeResult rawProbe = probe(input);
-
         List<String> cmd = new ArrayList<>(List.of("ffmpeg", "-y", "-i", input.toString()));
-        if (rawProbe.durationMs() > maxDurationMs) {
-            cmd.addAll(List.of("-t", String.valueOf(maxDurationMs / 1000)));
+        if (trimStartMs > 0) {
+            // Seek DESPUÉS de -i (no antes): más lento pero preciso a nivel de frame — como
+            // igual se re-codifica todo (no hay -c copy), el costo extra es insignificante
+            // para clips de a lo sumo 20s.
+            cmd.addAll(List.of("-ss", formatSeconds(trimStartMs)));
         }
+        cmd.addAll(List.of("-t", formatSeconds(outputDurationMs)));
         cmd.addAll(List.of(
                 "-vf", "scale='min(1280,iw)':-2",
                 // pix_fmt yuv420p a propósito: sin esto, libx264 a veces preserva el formato
@@ -70,6 +83,10 @@ public class FfmpegProcessor {
                 "-ss", "0.1", "-frames:v", "1", outputThumbnail.toString()), false);
 
         return new ProcessResult(finalProbe.durationMs(), finalProbe.width(), finalProbe.height());
+    }
+
+    private String formatSeconds(long ms) {
+        return String.format(java.util.Locale.ROOT, "%.3f", ms / 1000.0);
     }
 
     /**

@@ -200,3 +200,117 @@
   color: #fca5a5;
   font-weight: 600;
 }
+
+.clip-trimmer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.clip-trimmer-preview-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.clip-trimmer-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.clip-trimmer-mute {
+  position: absolute;
+  bottom: 0.5rem;
+  right: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 0.4rem;
+  border: none;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.clip-trimmer-duration {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.75;
+  text-align: center;
+}
+
+.clip-trimmer-track {
+  position: relative;
+  height: 3.5rem;
+  border-radius: 0.4rem;
+  overflow: hidden;
+  background: #000;
+  touch-action: none;
+  user-select: none;
+}
+
+.clip-trimmer-filmstrip {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+
+.clip-trimmer-filmstrip img {
+  flex: 1;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.clip-trimmer-dim {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.65);
+  pointer-events: none;
+}
+
+.clip-trimmer-selection {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-top: 2px solid var(--accent);
+  border-bottom: 2px solid var(--accent);
+  pointer-events: none;
+}
+
+.clip-trimmer-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0.75rem;
+  margin-left: -0.375rem;
+  background: var(--accent);
+  border-radius: 0.2rem;
+  cursor: ew-resize;
+}
+
+.clip-trimmer-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.clip-trimmer-actions button {
+  flex: 1;
+  padding: 0.65rem;
+  border-radius: 0.4rem;
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.clip-trimmer-actions button:first-child {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: inherit;
+}

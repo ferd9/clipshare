@@ -30,6 +30,10 @@ export interface ExternalCaptureMetadata {
   sourceClipStartMs: number;
   sourceClipEndMs: number;
   sourceTitle?: string;
+  /** Recorte elegido en el editor (filmstrip), relativo a la GRABACIÓN propia — no al video
+   * original. trimEndMs ausente = usar la grabación completa. */
+  trimStartMs?: number;
+  trimEndMs?: number;
 }
 
 export async function uploadFromCapture(blob: Blob, metadata: ExternalCaptureMetadata): Promise<ClipUploadResult> {
@@ -41,6 +45,8 @@ export async function uploadFromCapture(blob: Blob, metadata: ExternalCaptureMet
   formData.append('sourceClipStartMs', String(metadata.sourceClipStartMs));
   formData.append('sourceClipEndMs', String(metadata.sourceClipEndMs));
   if (metadata.sourceTitle) formData.append('sourceTitle', metadata.sourceTitle);
+  if (metadata.trimStartMs !== undefined) formData.append('trimStartMs', String(metadata.trimStartMs));
+  if (metadata.trimEndMs !== undefined) formData.append('trimEndMs', String(metadata.trimEndMs));
 
   const { data } = await apiClient.post<ClipUploadResult>('/api/clips/from-capture', formData);
   return data;

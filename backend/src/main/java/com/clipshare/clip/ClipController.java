@@ -42,9 +42,12 @@ public class ClipController {
             @RequestParam(value = "sourceExternalId", required = false) String sourceExternalId,
             @RequestParam("sourceClipStartMs") int sourceClipStartMs,
             @RequestParam("sourceClipEndMs") int sourceClipEndMs,
-            @RequestParam(value = "sourceTitle", required = false) String sourceTitle) {
+            @RequestParam(value = "sourceTitle", required = false) String sourceTitle,
+            @RequestParam(value = "trimStartMs", defaultValue = "0") int trimStartMs,
+            @RequestParam(value = "trimEndMs", required = false) Integer trimEndMs) {
         var metadata = new ExternalCaptureMetadata(
-                sourceUrl, sourcePlatform, sourceExternalId, sourceClipStartMs, sourceClipEndMs, sourceTitle);
+                sourceUrl, sourcePlatform, sourceExternalId, sourceClipStartMs, sourceClipEndMs, sourceTitle,
+                trimStartMs, trimEndMs);
         Clip clip = clipService.uploadExternalCapture(principal.getUser(), file, metadata);
         return ClipUploadResponse.from(clip);
     }

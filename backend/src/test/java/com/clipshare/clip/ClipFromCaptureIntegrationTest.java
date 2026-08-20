@@ -122,6 +122,65 @@ class ClipFromCaptureIntegrationTest {
     }
 
     @Test
+    void storesTheTrimRangeChosenInTheEditor() throws Exception {
+        String accessToken = registerAndVerifyUser();
+        MockMultipartFile blob = new MockMultipartFile("file", "capture.webm", "video/webm", "fake-webm-bytes".getBytes());
+
+        String response = mockMvc.perform(multipart("/api/clips/from-capture").file(blob)
+                        .header("Authorization", "Bearer " + accessToken)
+                        .param("sourceUrl", "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+                        .param("sourcePlatform", "YOUTUBE")
+                        .param("sourceClipStartMs", "5000")
+                        .param("sourceClipEndMs", "15000")
+                        .param("trimStartMs", "2000")
+                        .param("trimEndMs", "12000"))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+
+        UUID clipId = UUID.fromString(objectMapper.readTree(response).get("id").asText());
+        Clip clip = clipRepository.findById(clipId).orElseThrow();
+        assertThat(clip.getTrimStartMs()).isEqualTo(2000);
+        assertThat(clip.getTrimEndMs()).isEqualTo(12000);
+    }
+
+    @Test
+    void omittingTrimParamsLeavesThemNullMeaningUseTheWholeRecording() throws Exception {
+        String accessToken = registerAndVerifyUser();
+        MockMultipartFile blob = new MockMultipartFile("file", "capture.webm", "video/webm", "bytes".getBytes());
+
+        String response = mockMvc.perform(multipart("/api/clips/from-capture").file(blob)
+                        .header("Authorization", "Bearer " + accessToken)
+                        .param("sourceUrl", "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+                        .param("sourcePlatform", "YOUTUBE")
+                        .param("sourceClipStartMs", "0")
+                        .param("sourceClipEndMs", "8000"))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+
+        UUID clipId = UUID.fromString(objectMapper.readTree(response).get("id").asText());
+        Clip clip = clipRepository.findById(clipId).orElseThrow();
+        assertThat(clip.getTrimStartMs()).isEqualTo(0);
+        assertThat(clip.getTrimEndMs()).isNull();
+    }
+
+    @Test
+    void rejectsATrimRangeLongerThan20Seconds() throws Exception {
+        String accessToken = registerAndVerifyUser();
+        MockMultipartFile blob = new MockMultipartFile("file", "capture.webm", "video/webm", "bytes".getBytes());
+
+        mockMvc.perform(multipart("/api/clips/from-capture").file(blob)
+                        .header("Authorization", "Bearer " + accessToken)
+                        .param("sourceUrl", "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+                        .param("sourcePlatform", "YOUTUBE")
+                        .param("sourceClipStartMs", "0")
+                        .param("sourceClipEndMs", "5000")
+                        .param("trimStartMs", "0")
+                        .param("trimEndMs", "25000"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("INVALID_TRIM_RANGE"));
+    }
+
+    @Test
     void rejectsAPlatformOutsideTheSupportedThree() throws Exception {
         String accessToken = registerAndVerifyUser();
         MockMultipartFile blob = new MockMultipartFile("file", "capture.webm", "video/webm", "bytes".getBytes());

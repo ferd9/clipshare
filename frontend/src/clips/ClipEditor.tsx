@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ReactPlayer from 'react-player';
 import { extractErrorMessage } from '../auth/AuthContext';
+import { ClipTrimmer } from './ClipTrimmer';
 import { uploadFromCapture } from './clipsApi';
 import { useCanvasRecorder } from './useCanvasRecorder';
 import type { ClipPlatform } from './types';
@@ -17,6 +18,7 @@ interface ClipEditorProps {
 export function ClipEditor({ sourceUrl, sourcePlatform, sourceExternalId, onCancel }: ClipEditorProps) {
   const navigate = useNavigate();
   const playerRef = useRef<HTMLVideoElement>(null);
+  const playerContainerRef = useRef<HTMLDivElement>(null);
   const recorder = useCanvasRecorder();
 
   const [clipStartMs, setClipStartMs] = useState<number | null>(null);
@@ -31,10 +33,12 @@ export function ClipEditor({ sourceUrl, sourcePlatform, sourceExternalId, onCanc
 
   async function handleStartRecording() {
     setClipStartMs(currentPlayerMs());
-    await recorder.start();
+    // Se le pasa el contenedor del reproductor para recortar la grabación a esa región —
+    // sin esto se graba la pestaña entera (header, contador, botón "Detener" incluidos).
+    await recorder.start(playerContainerRef.current);
   }
 
-  async function handleUpload() {
+  async function handleUpload(trimStartMs: number, trimEndMs: number) {
     if (!recorder.blob) return;
     setUploading(true);
     setUploadError(null);
@@ -43,8 +47,12 @@ export function ClipEditor({ sourceUrl, sourcePlatform, sourceExternalId, onCanc
         sourceUrl,
         sourcePlatform,
         sourceExternalId: sourceExternalId ?? undefined,
-        sourceClipStartMs: clipStartMs ?? 0,
-        sourceClipEndMs: (clipStartMs ?? 0) + recorder.elapsedMs,
+        // Metadata informativa (a qué tramo del video original corresponde) ajustada al
+        // recorte elegido, no a la grabación completa.
+        sourceClipStartMs: (clipStartMs ?? 0) + trimStartMs,
+        sourceClipEndMs: (clipStartMs ?? 0) + trimEndMs,
+        trimStartMs,
+        trimEndMs,
       });
       setDone(true);
     } catch (err) {
@@ -71,9 +79,11 @@ export function ClipEditor({ sourceUrl, sourcePlatform, sourceExternalId, onCanc
         ← Cambiar link
       </button>
 
-      <div className="editor-player">
-        <ReactPlayer ref={playerRef} src={sourceUrl} controls playing width="100%" height="100%" />
-      </div>
+      {!recorder.blob && (
+        <div className="editor-player" ref={playerContainerRef}>
+          <ReactPlayer ref={playerRef} src={sourceUrl} controls playing width="100%" height="100%" />
+        </div>
+      )}
 
       <div className="editor-controls">
         {!recorder.isRecording && !recorder.blob && (
@@ -99,21 +109,21 @@ export function ClipEditor({ sourceUrl, sourcePlatform, sourceExternalId, onCanc
           </>
         )}
 
-        {recorder.blob && !done && (
-          <>
-            <video src={recorder.previewUrl ?? undefined} controls className="upload-preview" />
-            {uploadError && (
-              <p className="clips-error" role="alert">
-                {uploadError}
-              </p>
-            )}
-            <button type="button" onClick={() => void handleUpload()} disabled={uploading}>
-              {uploading ? 'Subiendo…' : 'Subir clip'}
-            </button>
-            <button type="button" onClick={recorder.reset} disabled={uploading}>
-              Grabar de nuevo
-            </button>
-          </>
+        {recorder.blob && !done && !uploading && (
+          <ClipTrimmer
+            blob={recorder.blob}
+            previewUrl={recorder.previewUrl ?? ''}
+            maxDurationMs={recorder.maxDurationMs}
+            onDiscard={recorder.reset}
+            onConfirm={(trimStartMs, trimEndMs) => void handleUpload(trimStartMs, trimEndMs)}
+          />
+        )}
+
+        {uploading && <p className="clips-loading">Subiendo…</p>}
+        {uploadError && (
+          <p className="clips-error" role="alert">
+            {uploadError}
+          </p>
         )}
 
         {recorder.error && (
