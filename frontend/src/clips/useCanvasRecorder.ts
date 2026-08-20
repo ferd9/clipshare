@@ -122,7 +122,22 @@ export function useCanvasRecorder() {
 
     let displayStream: MediaStream;
     try {
-      const constraints = { video: true, audio: true, preferCurrentTab: true } as DisplayMediaStreamOptions;
+      // width/height "ideal" en píxeles de dispositivo (no CSS): sin esto, Chrome puede
+      // capturar la pestaña a una resolución "conveniente" propia (no necesariamente la del
+      // viewport) y reescalar/letterboxear el contenido para que entre — lo que rompe
+      // cualquier cuenta de recorte basada en la posición del reproductor en pantalla, aunque
+      // esa cuenta sea por proporción (ver computeCropRect). Pedir explícitamente el tamaño
+      // real de la ventana como "ideal" hace que el stream capturado corresponda 1:1 (o muy
+      // cerca) con lo que measurea getBoundingClientRect(), sin ese reescalado de por medio.
+      const dpr = window.devicePixelRatio || 1;
+      const constraints = {
+        video: {
+          width: { ideal: Math.round(window.innerWidth * dpr) },
+          height: { ideal: Math.round(window.innerHeight * dpr) },
+        },
+        audio: true,
+        preferCurrentTab: true,
+      } as DisplayMediaStreamOptions;
       displayStream = await navigator.mediaDevices.getDisplayMedia(constraints);
     } catch {
       setState((s) => ({ ...s, error: 'Necesitamos permiso para compartir la pestaña para poder grabar.' }));
