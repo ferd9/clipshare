@@ -174,3 +174,98 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+.comment-attachment-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.comment-attachment-picker select,
+.comment-attachment-picker input[type='text'],
+.comment-attachment-picker input[type='url'] {
+  padding: 0.3rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  font-size: 0.8rem;
+}
+
+.comment-attachment-status {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.comment-attachment {
+  margin: 0.35rem 0;
+}
+
+.comment-attachment-img {
+  max-width: 100%;
+  max-height: 16rem;
+  border-radius: 0.4rem;
+  display: block;
+}
+
+.comment-attachment-clip-ref {
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
+
+.external-link-trigger {
+  color: var(--accent);
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.link-guard-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 1rem;
+}
+
+.link-guard-modal {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  padding: 1.25rem;
+  max-width: 26rem;
+  box-shadow: var(--shadow);
+}
+
+.link-guard-modal p {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.link-guard-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.link-guard-actions a,
+.link-guard-actions button {
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.link-guard-continue {
+  background: var(--accent) !important;
+  color: white !important;
+  border: none !important;
+}

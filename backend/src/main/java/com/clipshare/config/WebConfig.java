@@ -39,5 +39,14 @@ public class WebConfig implements WebMvcConfigurer {
                 // es seguro. Necesario además porque Spring Security desactivó el Cache-Control
                 // por defecto acá (ver SecurityConfig) — sin ninguno, Chrome no reproduce el video.
                 .setCacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic());
+
+        // Adjuntos de imagen en comentarios (Fase 6b, docs/SPEC.md sección 11.9). A diferencia
+        // de los clips, acá no hay una carpeta "public/" separada de "raw/": la verificación
+        // CSAM corre síncrona al subir (ver CommentAttachmentService) — si el archivo llegó a
+        // quedar en disco es porque ya está aprobado, no hace falta la misma separación de
+        // etapas que en el pipeline de video.
+        registry.addResourceHandler("/media/attachments/**")
+                .addResourceLocations("file:" + base + "attachments/")
+                .setCacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic());
     }
 }

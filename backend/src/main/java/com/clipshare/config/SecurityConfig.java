@@ -63,7 +63,7 @@ public class SecurityConfig {
     @Order(1)
     public SecurityFilterChain mediaSecurityFilterChain(HttpSecurity http) throws Exception {
         http
-                .securityMatcher("/media/clips/**")
+                .securityMatcher("/media/clips/**", "/media/attachments/**")
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

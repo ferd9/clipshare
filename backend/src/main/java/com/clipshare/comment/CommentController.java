@@ -16,19 +16,25 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 public class CommentController {
 
     private final CommentService commentService;
+    private final CommentAttachmentRepository attachmentRepository;
     private final ReportService reportService;
     private final AnonSessionService anonSessionService;
     private final IpHashService ipHashService;
 
-    public CommentController(CommentService commentService, ReportService reportService,
-                              AnonSessionService anonSessionService, IpHashService ipHashService) {
+    public CommentController(CommentService commentService, CommentAttachmentRepository attachmentRepository,
+                              ReportService reportService, AnonSessionService anonSessionService,
+                              IpHashService ipHashService) {
         this.commentService = commentService;
+        this.attachmentRepository = attachmentRepository;
         this.reportService = reportService;
         this.anonSessionService = anonSessionService;
         this.ipHashService = ipHashService;
@@ -45,7 +51,13 @@ public class CommentController {
         var viewer = principal != null ? principal.getUser() : null;
         UUID viewerUserId = viewer != null ? viewer.getId() : null;
         Page<Comment> result = commentService.listComments(clipId, page, size, viewerUserId, anonSessionId);
-        return PageResponse.from(result, comment -> CommentResponse.from(comment, viewer));
+
+        List<UUID> commentIds = result.getContent().stream().map(Comment::getId).toList();
+        Map<UUID, List<CommentAttachment>> attachmentsByComment = attachmentRepository.findByCommentIdIn(commentIds)
+                .stream().collect(Collectors.groupingBy(a -> a.getComment().getId()));
+
+        return PageResponse.from(result, comment -> CommentResponse.from(
+                comment, viewer, attachmentsByComment.getOrDefault(comment.getId(), List.of())));
     }
 
     @PostMapping("/api/clips/{id}/comments")
@@ -59,7 +71,8 @@ public class CommentController {
         String remoteIp = ipHashService.clientIp(servletRequest);
         String ipHash = ipHashService.hash(remoteIp);
         Comment comment = commentService.createComment(clipId, principal, request, ipHash, anonSessionId, remoteIp);
-        return CommentResponse.from(comment, principal != null ? principal.getUser() : null);
+        List<CommentAttachment> attachments = attachmentRepository.findByCommentId(comment.getId());
+        return CommentResponse.from(comment, principal != null ? principal.getUser() : null, attachments);
     }
 
     @PostMapping("/api/comments/{id}/report")

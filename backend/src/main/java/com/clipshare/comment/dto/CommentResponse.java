@@ -1,11 +1,13 @@
 package com.clipshare.comment.dto;
 
 import com.clipshare.comment.Comment;
+import com.clipshare.comment.CommentAttachment;
 import com.clipshare.comment.CommentAuthorType;
 import com.clipshare.user.User;
 import com.clipshare.user.UserRole;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 public record CommentResponse(
@@ -17,12 +19,15 @@ public record CommentResponse(
         String body,
         int likeCount,
         Instant createdAt,
-        boolean canDelete
+        boolean canDelete,
+        List<AttachmentResponse> attachments
 ) {
     /** @param viewer quien está mirando (null si es un visitante sin sesión) — determina si
      * el frontend debe mostrar el botón de borrar (dueño o ADMIN/MODERATOR, ver
-     * CommentService.deleteComment). */
-    public static CommentResponse from(Comment comment, User viewer) {
+     * CommentService.deleteComment).
+     * @param attachments ya filtrados/cargados por el caller (ver CommentController) — evita
+     * que este DTO dispare una query por comentario. */
+    public static CommentResponse from(Comment comment, User viewer, List<CommentAttachment> attachments) {
         String authorName = comment.getAuthorType() == CommentAuthorType.USER
                 ? comment.getUser().getDisplayName()
                 : comment.getGuestDisplayName();
@@ -37,6 +42,7 @@ public record CommentResponse(
                 comment.getBody(),
                 comment.getLikeCount(),
                 comment.getCreatedAt(),
-                isOwner || isModerator);
+                isOwner || isModerator,
+                attachments.stream().map(AttachmentResponse::from).toList());
     }
 }

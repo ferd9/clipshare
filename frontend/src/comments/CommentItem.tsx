@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { extractErrorMessage } from '../auth/AuthContext';
+import { mediaUrl } from '../clips/clipsApi';
 import { deleteComment, reportComment, type ReportCommentPayload } from './commentsApi';
 import { CommentForm } from './CommentForm';
+import { ExternalLinkGuard } from './ExternalLinkGuard';
 import type { CommentSummary } from './types';
 
 const REASON_LABEL: Record<ReportCommentPayload['reason'], string> = {
@@ -10,6 +12,8 @@ const REASON_LABEL: Record<ReportCommentPayload['reason'], string> = {
   HARASSMENT: 'Acoso',
   OTHER: 'Otro',
 };
+
+const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
 
 interface CommentItemProps {
   clipId: string;
@@ -41,6 +45,11 @@ export function CommentItem({ clipId, comment, onReply, onDeleted }: CommentItem
     }
   }
 
+  function openReportForLink() {
+    setReportReason('OTHER');
+    setReporting(true);
+  }
+
   async function handleDelete() {
     setBusy(true);
     setError(null);
@@ -54,13 +63,47 @@ export function CommentItem({ clipId, comment, onReply, onDeleted }: CommentItem
     }
   }
 
+  // Ningún link navega directo, ni siquiera uno pegado suelto dentro del texto (no solo los
+  // que vienen como adjunto LINK) — docs/SPEC.md sección 11.9. split() con un grupo capturador
+  // deja las URLs en los índices impares — más simple y sin el estado interno (lastIndex) que
+  // un regex /g reusado en .test() arrastraría entre llamadas.
+  function renderBody(body: string) {
+    const parts = body.split(URL_PATTERN);
+    return parts.map((part, index) =>
+      index % 2 === 1 ? (
+        <ExternalLinkGuard key={index} url={part} onReport={openReportForLink}>
+          {part}
+        </ExternalLinkGuard>
+      ) : (
+        <Fragment key={index}>{part}</Fragment>
+      ),
+    );
+  }
+
   return (
     <li className="comment-item">
       <div className="comment-item-header">
         <span className="comment-item-author">{comment.authorDisplayName}</span>
         <span className="comment-item-date">{new Date(comment.createdAt).toLocaleString()}</span>
       </div>
-      <p className="comment-item-body">{comment.body}</p>
+      <p className="comment-item-body">{renderBody(comment.body)}</p>
+
+      {comment.attachments.map((attachment) => (
+        <div key={attachment.id} className="comment-attachment">
+          {attachment.type === 'IMAGE' && attachment.imageUrl && (
+            <img src={mediaUrl(attachment.imageUrl)} alt="" className="comment-attachment-img" />
+          )}
+          {attachment.type === 'CLIP_REFERENCE' && attachment.referencedClipId && (
+            <span className="comment-attachment-clip-ref">📎 Clip referenciado: {attachment.referencedClipId}</span>
+          )}
+          {attachment.type === 'LINK' && attachment.linkUrl && (
+            <ExternalLinkGuard url={attachment.linkUrl} onReport={openReportForLink}>
+              🔗 {attachment.linkDomain ?? attachment.linkUrl}
+            </ExternalLinkGuard>
+          )}
+        </div>
+      ))}
+
       <div className="comment-item-actions">
         <button type="button" onClick={() => setReplying((v) => !v)}>
           Responder
