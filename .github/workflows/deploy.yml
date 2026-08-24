@@ -1,0 +1,27 @@
+name: Deploy
+
+# Se dispara con cada push a develop (la VM de prueba en Google Cloud sigue esta rama, no
+# main) — ver el resumen de automatización charlado en el chat. Los secrets (DEPLOY_HOST,
+# DEPLOY_USER, DEPLOY_SSH_KEY) se configuran en GitHub: Settings → Secrets and variables →
+# Actions. La clave privada nunca vive en el repo.
+on:
+  push:
+    branches: [develop]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VM
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/clipshare
+            git fetch origin
+            git checkout develop
+            git reset --hard origin/develop
+            docker compose up -d --build
