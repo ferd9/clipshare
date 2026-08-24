@@ -40,6 +40,7 @@ export function ClipCard({ clip, muted, onToggleMuted, onActive }: ClipCardProps
   const videoRef = useRef<HTMLVideoElement>(null);
   const slideRef = useRef<HTMLDivElement>(null);
   const [isActive, setIsActive] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
 
   // root: null (viewport del navegador) alcanza acá porque .clip-feed ya ocupa prácticamente
@@ -60,22 +61,36 @@ export function ClipCard({ clip, muted, onToggleMuted, onActive }: ClipCardProps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reproduce solo mientras es el clip activo (en pantalla) — se pausa y vuelve al principio
-  // al salir de vista, así la próxima vez que aparezca arranca desde el inicio (como
-  // TikTok/Shorts), en vez de seguir corriendo de fondo o retomar a mitad de camino.
+  // Al entrar/salir de pantalla: reinicia desde el principio y limpia cualquier pausa manual
+  // que hubiera quedado de la vez anterior — así cada vez que un clip vuelve a aparecer
+  // arranca reproduciendo desde el inicio (como TikTok/Shorts), nunca "recuerda" que el
+  // usuario lo había pausado la última vez que lo vio.
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     if (isActive) {
       video.currentTime = 0;
+      setPaused(false);
+    } else {
+      video.pause();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive]);
+
+  // Pausa/reproduce manual (tocar el video, ver más abajo) — efecto aparte del de arriba para
+  // no reiniciar currentTime cada vez que el usuario pausa y retoma el mismo clip.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !isActive) return;
+    if (paused) {
+      video.pause();
+    } else {
       video.play().catch(() => {
         // Autoplay con sonido bloqueado por el navegador — no es un error real, arranca
         // muted por default (ver ClipFeed) así que esto no debería pasar en la práctica.
       });
-    } else {
-      video.pause();
     }
-  }, [isActive]);
+  }, [paused, isActive]);
 
   return (
     <article className="clip-feed-slide" ref={slideRef}>
@@ -88,8 +103,17 @@ export function ClipCard({ clip, muted, onToggleMuted, onActive }: ClipCardProps
         loop
         muted={muted}
         playsInline
-        onClick={onToggleMuted}
+        onClick={() => setPaused((p) => !p)}
       />
+
+      {/* Ícono grande centrado, solo mientras está pausado — misma señal visual que
+       * TikTok/Instagram para confirmar que el toque realmente pausó (sin esto, no había
+       * ninguna forma de saber si el video se detuvo o si simplemente terminó un frame quieto). */}
+      {isActive && paused && (
+        <div className="clip-feed-paused-indicator" aria-hidden="true">
+          ▶
+        </div>
+      )}
 
       <div className="clip-feed-overlay">
         {clip.title && <p className="clip-feed-title">{clip.title}</p>}

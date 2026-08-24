@@ -97,6 +97,26 @@
   text-decoration: none;
 }
 
+.clip-feed-paused-indicator {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 4rem;
+  height: 4rem;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* padding-left para compensar que "▶" visualmente no queda centrado en su propia caja
+   * (el triángulo pesa más a la derecha) — sin esto se ve corrido hacia la izquierda. */
+  padding-left: 0.35rem;
+  pointer-events: none;
+}
+
 .clip-feed-error {
   position: absolute;
   top: 0.75rem;
