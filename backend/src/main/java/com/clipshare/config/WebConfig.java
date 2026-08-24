@@ -48,5 +48,13 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addResourceHandler("/media/attachments/**")
                 .addResourceLocations("file:" + base + "attachments/")
                 .setCacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic());
+
+        // Pistas de audio de reemplazo (AudioTrackService) — a diferencia de los clips de
+        // video, se aprueban sincrónicamente al subir/importar (sin pipeline de moderación de
+        // audio real todavía, ver TODO en AudioTrackService), por eso se sirven directo desde
+        // "audio/" sin la separación raw/work/public que sí necesita el video.
+        registry.addResourceHandler("/media/audio/**")
+                .addResourceLocations("file:" + base + "audio/")
+                .setCacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic());
     }
 }

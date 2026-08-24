@@ -3,8 +3,26 @@ FROM eclipse-temurin:21-jdk
 # ffmpeg + PDQ hashing (el worker es el único servicio que necesita recodificar video/frames).
 # Los mirrors oficiales de Ubuntu se fuerzan a HTTPS: algunas redes corporativas devuelven
 # 403 en el puerto 80 (HTTP plano) que usa apt por defecto.
+# python3-pip acá también: yt-dlp (más abajo) es un zipapp que corre sobre el Python del
+# sistema, no uno bundleado — hace falta para poder instalarle curl_cffi (ver más abajo).
 RUN sed -i 's|http://archive.ubuntu.com|https://archive.ubuntu.com|g; s|http://security.ubuntu.com|https://security.ubuntu.com|g' /etc/apt/sources.list.d/ubuntu.sources \
-    && apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+    && apt-get update && apt-get install -y ffmpeg curl python3-pip && rm -rf /var/lib/apt/lists/*
+
+# yt-dlp: binario standalone (bundlea su propio Python, no hace falta instalar Python aparte)
+# para descargar server-side el video/audio de una plataforma externa antes de recortarlo —
+# decisión de producto tomada a propósito por el usuario, sabiendo que pisa los ToS de esas
+# plataformas (ver docs/SPEC.md sección 2, ahora reemplazada por este flujo para el import
+# por link). Usa ffmpeg (ya instalado arriba) para mezclar formatos cuando hace falta.
+RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
+    && chmod a+rx /usr/local/bin/yt-dlp
+
+# curl_cffi: dependencia opcional de yt-dlp para "impersonar" un navegador real (fingerprint
+# TLS/HTTP2) — sin esto, sitios con protección anti-bot agresiva (TikTok es el caso que nos
+# hizo agregar esto, ver ClipPlatform) devuelven 403 o respuestas incompletas incluso con la
+# URL bien formada. --break-system-packages: esta imagen no usa un venv separado para esto (es
+# el único uso de pip en todo el contenedor), y Debian/Ubuntu recientes bloquean pip install
+# directo al Python del sistema por PEP 668 si no se pasa esta bandera explícitamente.
+RUN pip3 install --break-system-packages --no-cache-dir "curl_cffi>=0.13"
 
 WORKDIR /app
 

@@ -19,7 +19,22 @@
   aspect-ratio: 9 / 16;
   background: #000;
   border-radius: 0.5rem;
-  object-fit: cover;
+  /* contain, no cover: un clip horizontal debe verse COMPLETO dentro del marco vertical del
+   * feed (con franjas negras arriba/abajo, ver background de acá arriba), no recortado a los
+   * costados para simular que es vertical. Un clip ya vertical no cambia de verse — su relación
+   * de aspecto ya es ~9:16, así que contain y cover dan prácticamente el mismo resultado ahí.
+   * En pantalla completa (los controles nativos de <video controls>, más abajo) ya se ve en su
+   * proporción horizontal real sin que haga falta nada más acá. */
+  object-fit: contain;
+}
+
+.clip-card-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .clip-card-meta {
@@ -152,7 +167,10 @@
   text-align: left;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  /* Chico a propósito (no 1rem): la pista de audio de reemplazo (primer hijo de
+   * .editor-controls cuando hay una elegida) tiene que quedar pegada justo debajo de la
+   * onda del audio original, que es lo último que muestra ClipTrimmer arriba. */
+  gap: 0.3rem;
 }
 
 .editor-back {
@@ -207,6 +225,27 @@
   gap: 0.75rem;
 }
 
+.clip-trimmer-audio-name {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Título del video/audio importado por link (ver sourceUrl) — mismo color que el texto que lo
+ * rodea, apenas subrayado con puntos para que se note que es clickeable sin llamar demasiado
+ * la atención. */
+.clip-trimmer-source-link {
+  color: inherit;
+  text-decoration: underline dotted;
+}
+
+.clip-trimmer-source-link:hover {
+  text-decoration-style: solid;
+}
+
 .clip-trimmer-preview-wrap {
   position: relative;
   width: 100%;
@@ -222,10 +261,20 @@
   object-fit: contain;
 }
 
-.clip-trimmer-mute {
+/* Columna a propósito (no fila) y a la IZQUIERDA (no a la derecha, como antes): tiene que
+ * alinearse con el botón de play de la barra de selección y el ícono de la fila de volumen,
+ * los dos más abajo y los dos pegados al borde izquierdo de sus propias filas. */
+.clip-trimmer-preview-controls {
   position: absolute;
+  left: 0.5rem;
   bottom: 0.5rem;
-  right: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.clip-trimmer-play,
+.clip-trimmer-mute {
   padding: 0.3rem 0.5rem;
   border-radius: 0.4rem;
   border: none;
@@ -240,6 +289,72 @@
   font-size: 0.85rem;
   opacity: 0.75;
   text-align: center;
+}
+
+/* Compartido entre ClipTrimmer (video) y AudioTrimmer (audio de reemplazo) — mismo control de
+ * volumen, mismo look en los dos. */
+.media-volume-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.media-volume-row input[type='range'] {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
+.media-volume-icon {
+  flex-shrink: 0;
+  /* Mismo ancho que los botones de play al costado del track (2.5rem, ver
+   * .clip-trimmer-fragment-play/.audio-trimmer-play-button) — para que quede alineado en
+   * columna con ellos, no corrido. */
+  width: 2.5rem;
+  text-align: center;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.clip-trimmer-video-audio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.clip-trimmer-fragment-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.clip-trimmer-fragment-row .clip-trimmer-track,
+.clip-trimmer-fragment-row .clip-trimmer-audio-track {
+  flex: 1;
+  min-width: 0;
+}
+
+.clip-trimmer-fragment-play {
+  flex-shrink: 0;
+  width: 2.5rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+/* Mismo ancho que .clip-trimmer-fragment-play — así la onda de audio (que no tiene su propio
+ * botón al costado) arranca y termina alineada con el track de video de arriba. */
+.clip-trimmer-fragment-spacer {
+  flex-shrink: 0;
+  width: 2.5rem;
 }
 
 .clip-trimmer-track {
@@ -277,19 +392,132 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  border-top: 2px solid var(--accent);
-  border-bottom: 2px solid var(--accent);
+  border-top: 1px solid var(--accent);
+  border-bottom: 1px solid var(--accent);
+  background: rgba(255, 255, 255, 0.08);
+  cursor: grab;
+  touch-action: none;
+}
+
+.clip-trimmer-selection:active {
+  cursor: grabbing;
+}
+
+.clip-trimmer-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.6;
+  text-align: center;
+}
+
+/* Fila horizontal ARRIBA del track (no más al costado) — mismo criterio que el resto de los
+ * controles del editor, que van todos apilados verticalmente. */
+.clip-trimmer-zoom-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.clip-trimmer-zoom-icon {
+  font-size: 0.9rem;
+  opacity: 0.75;
+  line-height: 1;
+  margin-right: 0.1rem;
+}
+
+.clip-trimmer-zoom-controls button {
+  width: 1.75rem;
+  height: 1.5rem;
+  padding: 0;
+  border-radius: 0.3rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.clip-trimmer-zoom-controls button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.clip-trimmer-zoom-fit {
+  font-size: 0.9rem !important;
+}
+
+.clip-trimmer-audio-track {
+  position: relative;
+  height: 2rem;
+  border-radius: 0.4rem;
+  overflow: hidden;
+  background: repeating-linear-gradient(90deg, #23232e, #23232e 3px, #1a1a22 3px, #1a1a22 6px);
+}
+
+.clip-trimmer-add-audio-button {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.clip-trimmer-minimap {
+  position: relative;
+  height: 1.75rem;
+  border-radius: 0.3rem;
+  overflow: hidden;
+  background: #000;
+  opacity: 0.85;
+  touch-action: none;
+  user-select: none;
+}
+
+.clip-trimmer-minimap .clip-trimmer-filmstrip img {
+  opacity: 0.6;
+}
+
+.clip-trimmer-minimap-selection {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.35);
   pointer-events: none;
+}
+
+.clip-trimmer-minimap-viewport {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border: 2px solid var(--accent);
+  border-radius: 0.15rem;
+  cursor: grab;
+  box-sizing: border-box;
+}
+
+.clip-trimmer-minimap-viewport:active {
+  cursor: grabbing;
 }
 
 .clip-trimmer-handle {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 0.75rem;
-  margin-left: -0.375rem;
+  width: 0.3rem;
+  margin-left: -0.15rem;
   background: var(--accent);
-  border-radius: 0.2rem;
+  border-radius: 0.15rem;
   cursor: ew-resize;
 }
 
@@ -314,3 +542,191 @@
   border: 1px solid var(--border);
   color: inherit;
 }
+
+.editor-title-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+.editor-title-label input {
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  font-size: 1rem;
+}
+
+.editor-mute-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.editor-audio-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.editor-radio {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.audio-trimmer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.audio-trimmer-name {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audio-trimmer-waveform {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 0 2px;
+}
+
+.audio-trimmer-bar {
+  flex: 1;
+  min-width: 1px;
+  background: var(--accent);
+  opacity: 0.7;
+  border-radius: 1px;
+}
+
+.audio-trimmer-track-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.audio-trimmer-track-row .audio-trimmer-track {
+  flex: 1;
+  min-width: 0;
+}
+
+.audio-trimmer-play-button,
+.audio-trimmer-remove-button {
+  flex-shrink: 0;
+  width: 2.5rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.audio-trimmer-remove-button:hover {
+  border-color: #f87171;
+}
+
+.audio-trimmer-track {
+  position: relative;
+  height: 2.5rem;
+  border-radius: 0.4rem;
+  overflow: hidden;
+  background: repeating-linear-gradient(90deg, #23232e, #23232e 3px, #1a1a22 3px, #1a1a22 6px);
+  touch-action: none;
+  user-select: none;
+}
+
+.audio-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.audio-picker-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.audio-picker-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 24rem;
+  padding: 1.25rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.audio-picker-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.audio-picker-modal-header h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.audio-picker-modal-close {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.25rem;
+}
+
+.audio-picker-actions,
+.audio-picker-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.audio-picker-form input[type='url'] {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.audio-picker-actions button,
+.audio-picker-form button {
+  padding: 0.5rem 0.85rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.audio-picker-form button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+

@@ -4,7 +4,7 @@ import { extractErrorMessage } from '../auth/AuthContext';
 import { uploadClip } from './clipsApi';
 import './clips.css';
 
-const MAX_DURATION_MS = 20_000;
+const MAX_SOURCE_DURATION_MS = 10 * 60 * 1000;
 
 // Con el email sin verificar igual se puede subir (limitado a 3/día — ver el banner en
 // Nav.tsx, que ya avisa de esto en todas las páginas) — ver docs/SPEC.md sección 12.
@@ -18,12 +18,10 @@ export function UploadOwnClip() {
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState(false);
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const selected = event.target.files?.[0] ?? null;
     setError(null);
-    setDone(false);
     setDurationMs(null);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setFile(selected);
@@ -44,26 +42,15 @@ export function UploadOwnClip() {
     setSubmitting(true);
     setProgress(0);
     try {
-      await uploadClip(file, setProgress);
-      setDone(true);
+      const result = await uploadClip(file, setProgress);
+      // Después de subir hay que elegir recorte + silenciar/reemplazar audio (docs/SPEC.md
+      // sección 9) — el worker todavía tiene que normalizar el archivo primero (fase STAGE),
+      // ClipEditPage hace polling hasta que esté listo.
+      navigate(`/clips/${result.id}/edit`);
     } catch (err) {
       setError(extractErrorMessage(err, 'No se pudo subir el clip'));
-    } finally {
       setSubmitting(false);
     }
-  }
-
-  if (done) {
-    return (
-      <div className="upload-page">
-        <p className="upload-success">
-          ¡Listo! Tu clip se está procesando — en unos segundos aparece en el feed.
-        </p>
-        <button type="button" onClick={() => navigate('/')}>
-          Ir al feed
-        </button>
-      </div>
-    );
   }
 
   return (
@@ -82,11 +69,8 @@ export function UploadOwnClip() {
           />
         )}
 
-        {durationMs !== null && durationMs > MAX_DURATION_MS && (
-          <p className="upload-hint">
-            Dura {(durationMs / 1000).toFixed(1)}s — el servidor recorta automáticamente a
-            los primeros 20s.
-          </p>
+        {durationMs !== null && durationMs > MAX_SOURCE_DURATION_MS && (
+          <p className="upload-hint">El video dura más de 10 minutos — no lo vamos a poder procesar.</p>
         )}
 
         {error && (

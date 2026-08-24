@@ -1,8 +1,10 @@
 package com.clipshare.worker;
 
 import com.clipshare.clip.Clip;
+import com.clipshare.clip.ClipJobType;
 import com.clipshare.clip.ClipQueuePublisher;
 import com.clipshare.clip.ClipService;
+import com.clipshare.clip.ClipSourceType;
 import com.clipshare.moderation.ModerationService;
 import com.clipshare.storage.FileHasher;
 import com.clipshare.storage.StorageService;
@@ -12,6 +14,7 @@ import org.springframework.context.SmartLifecycle;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -27,13 +30,19 @@ import java.util.stream.Stream;
 
 /**
  * Consumidor de la cola de Redis (docs/SPEC.md sección 4): corre solo en el contenedor
- * `worker` (perfil "worker", el único con ffmpeg instalado). Usa un hilo daemon propio en
- * vez de @Scheduled porque queremos un BRPOP bloqueante de baja latencia, no polling.
+ * `worker` (perfil "worker", el único con ffmpeg/yt-dlp instalados). Usa un hilo daemon propio
+ * en vez de @Scheduled porque queremos un BRPOP bloqueante de baja latencia, no polling.
+ *
+ * Pipeline en dos fases (ver ClipService): STAGE descarga (si hace falta) y normaliza la
+ * fuente completa a un archivo "editable"; FINALIZE recorta ese archivo al rango elegido por
+ * el usuario, aplica mute/reemplazo de audio, modera y publica. Mismo código para OWN_UPLOAD
+ * y EXTERNAL_CAPTURE desde STAGE en adelante.
  *
  * Cada paso de escritura a la base pasa por {@link ClipService} (bean distinto) para que
  * @Transactional funcione de verdad — auto-invocación dentro de la misma clase no pasa por
- * el proxy de Spring. El trabajo de ffmpeg en sí corre fuera de cualquier transacción:
- * puede tardar bastante y no tiene sentido mantener una conexión a la base abierta ese rato.
+ * el proxy de Spring. El trabajo de ffmpeg/yt-dlp en sí corre fuera de cualquier transacción:
+ * puede tardar bastante (hasta 10 minutos de descarga) y no tiene sentido mantener una
+ * conexión a la base abierta ese rato.
  */
 @Component
 @Profile("worker")
@@ -41,28 +50,35 @@ public class ClipProcessingWorker implements SmartLifecycle {
 
     private static final Logger log = LoggerFactory.getLogger(ClipProcessingWorker.class);
     private static final Duration POLL_TIMEOUT = Duration.ofSeconds(5);
-    private static final long MAX_DURATION_MS = 20_000;
-    private static final int MODERATION_MAX_FRAMES = 20; // 1/seg sobre un clip de hasta 20s
+    private static final long MAX_DURATION_MS = ClipService.MAX_CLIP_DURATION_MS;
+    // 1/seg sobre TODO el clip, no un tope fijo — antes era un literal 20 atado a mano al
+    // viejo máximo de 20s; con el máximo ahora en 40s (ver ClipService.MAX_CLIP_DURATION_MS)
+    // un valor fijo habría dejado la segunda mitad de cualquier clip largo sin moderar.
+    private static final int MODERATION_MAX_FRAMES = (int) (ClipService.MAX_CLIP_DURATION_MS / 1000);
 
     private final StringRedisTemplate redisTemplate;
     private final ClipService clipService;
     private final StorageService storageService;
     private final FfmpegProcessor ffmpegProcessor;
+    private final YtDlpClient ytDlpClient;
     private final FileHasher fileHasher;
     private final ModerationService moderationService;
+    private final ObjectMapper objectMapper;
 
     private volatile boolean running = false;
     private Thread thread;
 
     public ClipProcessingWorker(StringRedisTemplate redisTemplate, ClipService clipService,
-                                 StorageService storageService, FfmpegProcessor ffmpegProcessor, FileHasher fileHasher,
-                                 ModerationService moderationService) {
+                                 StorageService storageService, FfmpegProcessor ffmpegProcessor, YtDlpClient ytDlpClient,
+                                 FileHasher fileHasher, ModerationService moderationService, ObjectMapper objectMapper) {
         this.redisTemplate = redisTemplate;
         this.clipService = clipService;
         this.storageService = storageService;
         this.ffmpegProcessor = ffmpegProcessor;
+        this.ytDlpClient = ytDlpClient;
         this.fileHasher = fileHasher;
         this.moderationService = moderationService;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -91,47 +107,104 @@ public class ClipProcessingWorker implements SmartLifecycle {
 
     private void loop() {
         while (running) {
-            String clipId;
+            String raw;
             try {
-                clipId = redisTemplate.opsForList().rightPop(ClipQueuePublisher.QUEUE_KEY, POLL_TIMEOUT);
+                raw = redisTemplate.opsForList().rightPop(ClipQueuePublisher.QUEUE_KEY, POLL_TIMEOUT);
             } catch (Exception e) {
                 log.error("Error leyendo la cola de Redis, reintento en 5s", e);
                 sleepQuietly(Duration.ofSeconds(5));
                 continue;
             }
-            if (clipId == null) {
+            if (raw == null) {
                 continue; // timeout normal del RPOP bloqueante: seguir escuchando
             }
 
-            UUID id = UUID.fromString(clipId);
+            ClipQueuePublisher.ClipJob job;
             try {
-                processClip(id);
+                job = objectMapper.readValue(raw, ClipQueuePublisher.ClipJob.class);
             } catch (Exception e) {
-                log.error("Fallo procesando clip {}", id, e);
-                clipService.markFailed(id);
+                log.error("Mensaje de cola ilegible, se descarta: {}", raw, e);
+                continue;
+            }
+
+            try {
+                if (job.jobType() == ClipJobType.STAGE) {
+                    stageClip(job.clipId());
+                } else {
+                    finalizeClip(job.clipId());
+                }
+            } catch (Exception e) {
+                log.error("Fallo procesando clip {} (job {})", job.clipId(), job.jobType(), e);
+                clipService.markFailed(job.clipId(), "Error inesperado procesando el clip");
             }
         }
     }
 
-    private void processClip(UUID clipId) throws IOException {
-        String rawRelativePath = clipService.getRawFilePath(clipId);
+    // ---- Fase 1: STAGE ----
+
+    private void stageClip(UUID clipId) throws IOException {
+        ClipService.StageInput input = clipService.getStageInput(clipId);
         clipService.markProcessing(clipId);
 
+        String rawRelativePath = input.filePath();
+        if (input.sourceType() == ClipSourceType.EXTERNAL_CAPTURE && rawRelativePath == null) {
+            // Descarga real (hasta 10 minutos de video, puede tardar) — corre acá, nunca en el
+            // request HTTP que solo hizo el pre-chequeo rápido de metadata (ClipService.importFromLink).
+            rawRelativePath = "raw/" + clipId + "/source.mp4";
+            try {
+                ytDlpClient.downloadVideo(input.sourceUrl(), storageService.resolveLocalPath(rawRelativePath));
+            } catch (YtDlpClient.YtDlpException e) {
+                log.warn("No se pudo descargar el clip {}: {}", clipId, e.getMessage());
+                clipService.markFailed(clipId, e.getMessage());
+                return;
+            }
+            clipService.markRawDownloaded(clipId, rawRelativePath);
+        }
+
         Path rawPath = storageService.resolveLocalPath(rawRelativePath);
+        FfmpegProcessor.ProbeResult sourceProbe;
+        try {
+            sourceProbe = ffmpegProcessor.probe(rawPath);
+        } catch (IOException e) {
+            log.warn("No se pudo leer el archivo de video del clip {}", clipId, e);
+            clipService.markFailed(clipId, "No se pudo leer el archivo de video");
+            storageService.delete(rawRelativePath);
+            return;
+        }
+        if (sourceProbe.durationMs() > ClipService.MAX_SOURCE_DURATION_MS) {
+            // Segunda validación real: la de ClipService.importFromLink es solo un pre-chequeo
+            // de metadata (puede faltar/mentir) — y la ÚNICA posible para OWN_UPLOAD, que nunca
+            // pasa por ese pre-chequeo.
+            clipService.markFailed(clipId, "El video no puede superar los 10 minutos");
+            storageService.delete(rawRelativePath);
+            return;
+        }
+
+        Path editableVideo = storageService.resolveLocalPath("work/" + clipId + "/editable.mp4");
+        ffmpegProcessor.stage(rawPath, editableVideo);
+        storageService.delete(rawRelativePath);
+
+        clipService.markAwaitingEdit(clipId, "work/" + clipId + "/editable.mp4");
+    }
+
+    // ---- Fase 2: FINALIZE ----
+
+    private void finalizeClip(UUID clipId) throws IOException {
+        ClipService.FinalizeInput input = clipService.getFinalizeInput(clipId);
+
+        Path editablePath = storageService.resolveLocalPath(input.editableFilePath());
         Path workVideo = storageService.resolveLocalPath("work/" + clipId + "/final.mp4");
         Path workThumb = storageService.resolveLocalPath("work/" + clipId + "/thumb.jpg");
+        Path replacementAudioPath = input.replacementAudioTrackPath() != null
+                ? storageService.resolveLocalPath(input.replacementAudioTrackPath()) : null;
 
-        // Recorte elegido en el editor client-side (docs/SPEC.md sección 9) — NULL en ambos
-        // (siempre el caso para OWN_UPLOAD) preserva el comportamiento previo: todo el
-        // archivo, desde el arranque, acotado a 20s.
-        ClipService.TrimRange trim = clipService.getTrimRange(clipId);
-        long trimStartMs = trim.startMs() != null ? trim.startMs() : 0;
-        long requestedDurationMs = trim.endMs() != null ? (trim.endMs() - trimStartMs) : MAX_DURATION_MS;
-        long outputDurationMs = Math.min(requestedDurationMs, MAX_DURATION_MS);
+        long outputDurationMs = Math.min(input.trimEndMs() - input.trimStartMs(), MAX_DURATION_MS);
+        FfmpegProcessor.ProcessResult result = ffmpegProcessor.finalizeClip(editablePath, workVideo, workThumb,
+                input.trimStartMs(), outputDurationMs, input.muteOriginalAudio(), replacementAudioPath,
+                input.replacementAudioStartMs(), input.originalAudioVolume(), input.replacementAudioVolume());
+        deleteQuietly(editablePath); // ya cumplió su función, sea cual sea el resultado de acá en más
 
-        FfmpegProcessor.ProcessResult result = ffmpegProcessor.process(rawPath, workVideo, workThumb, trimStartMs, outputDurationMs);
         String contentHash = fileHasher.sha256Hex(workVideo);
-
         Optional<Clip> duplicate = clipService.findByContentHash(contentHash)
                 .filter(existing -> !existing.getId().equals(clipId));
         if (duplicate.isPresent()) {
@@ -140,7 +213,6 @@ public class ClipProcessingWorker implements SmartLifecycle {
             clipService.markRejected(clipId);
             deleteQuietly(workVideo);
             deleteQuietly(workThumb);
-            storageService.delete(rawRelativePath);
             return;
         }
 
@@ -165,10 +237,8 @@ public class ClipProcessingWorker implements SmartLifecycle {
         if (outcome == ModerationService.Outcome.REJECTED) {
             log.warn("Clip {} rechazado por moderación", clipId);
             clipService.markRejected(clipId);
-            // Sin retener el contenido: ni el archivo crudo ni el procesado quedan en disco.
             deleteQuietly(workVideo);
             deleteQuietly(workThumb);
-            storageService.delete(rawRelativePath);
             return;
         }
 
@@ -181,8 +251,6 @@ public class ClipProcessingWorker implements SmartLifecycle {
         Files.move(workThumb, publicThumb, StandardCopyOption.REPLACE_EXISTING);
 
         clipService.markPublished(clipId, "public/" + clipId + "/final.mp4", "public/" + clipId + "/thumb.jpg");
-
-        storageService.delete(rawRelativePath);
     }
 
     private void deleteRecursively(Path dir) {

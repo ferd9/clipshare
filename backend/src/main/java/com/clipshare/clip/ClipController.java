@@ -3,14 +3,19 @@ package com.clipshare.clip;
 import com.clipshare.auth.AppUserPrincipal;
 import com.clipshare.clip.dto.ClipDetailResponse;
 import com.clipshare.clip.dto.ClipUploadResponse;
-import com.clipshare.clip.dto.ExternalCaptureMetadata;
+import com.clipshare.clip.dto.FinalizeClipRequest;
+import com.clipshare.clip.dto.ImportClipRequest;
 import com.clipshare.common.dto.PageResponse;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.file.Path;
 import java.util.UUID;
 
 @RestController
@@ -32,23 +37,41 @@ public class ClipController {
         return ClipUploadResponse.from(clip);
     }
 
-    @PostMapping(value = "/from-capture", consumes = "multipart/form-data")
+    /** Reemplaza al viejo POST /from-capture (grabación de pantalla, retirado por calidad
+     * inaceptable — ver docs/SPEC.md): server-side download vía yt-dlp, mismo criterio de
+     * riesgo de ToS ya aceptado explícitamente para este proyecto. */
+    @PostMapping("/import")
     @ResponseStatus(HttpStatus.ACCEPTED)
-    public ClipUploadResponse fromCapture(
+    public ClipUploadResponse importFromLink(
             @AuthenticationPrincipal AppUserPrincipal principal,
-            @RequestParam("file") MultipartFile file,
-            @RequestParam("sourceUrl") String sourceUrl,
-            @RequestParam("sourcePlatform") ClipPlatform sourcePlatform,
-            @RequestParam(value = "sourceExternalId", required = false) String sourceExternalId,
-            @RequestParam("sourceClipStartMs") int sourceClipStartMs,
-            @RequestParam("sourceClipEndMs") int sourceClipEndMs,
-            @RequestParam(value = "sourceTitle", required = false) String sourceTitle,
-            @RequestParam(value = "trimStartMs", defaultValue = "0") int trimStartMs,
-            @RequestParam(value = "trimEndMs", required = false) Integer trimEndMs) {
-        var metadata = new ExternalCaptureMetadata(
-                sourceUrl, sourcePlatform, sourceExternalId, sourceClipStartMs, sourceClipEndMs, sourceTitle,
-                trimStartMs, trimEndMs);
-        Clip clip = clipService.uploadExternalCapture(principal.getUser(), file, metadata);
+            @RequestBody ImportClipRequest request) {
+        Clip clip = clipService.importFromLink(principal.getUser(), request.sourceUrl(), request.sourcePlatform());
+        return ClipUploadResponse.from(clip);
+    }
+
+    /** Archivo "editable" (fase AWAITING_EDIT) que muestra el editor de recorte — solo el
+     * dueño puede verlo, nunca se expone vía /media/** como el contenido ya publicado. */
+    @GetMapping("/{id}/editable")
+    public ResponseEntity<FileSystemResource> editable(
+            @AuthenticationPrincipal AppUserPrincipal principal,
+            @PathVariable UUID id) {
+        Path path = clipService.getEditableFilePath(id, principal.getUser());
+        return ResponseEntity.ok()
+                .contentType(MediaType.valueOf("video/mp4"))
+                .body(new FileSystemResource(path));
+    }
+
+    @PostMapping("/{id}/finalize")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public ClipUploadResponse finalize(
+            @AuthenticationPrincipal AppUserPrincipal principal,
+            @PathVariable UUID id,
+            @RequestBody FinalizeClipRequest request) {
+        var finalizeRequest = new ClipService.FinalizeRequest(
+                request.trimStartMs(), request.trimEndMs(), request.muteOriginalAudio(), request.replacementAudioTrackId(),
+                request.replacementAudioStartMs(), request.replacementAudioEndMs(), request.title(),
+                request.originalAudioVolume(), request.replacementAudioVolume());
+        Clip clip = clipService.finalizeClip(id, principal.getUser(), finalizeRequest);
         return ClipUploadResponse.from(clip);
     }
 

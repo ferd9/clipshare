@@ -5,10 +5,38 @@ export interface DetectedSource {
   externalId: string | null;
 }
 
+export interface PlatformConfig {
+  value: Exclude<ClipPlatform, 'NONE'>;
+  label: string;
+  hostnames: string[];
+}
+
 /**
- * Detección liviana solo para nuestra propia metadata (source_platform/source_external_id,
- * ver docs/SPEC.md sección 7) — react-player hace su propio parseo, más robusto, para
- * decidir qué reproductor usar. Acotado a las tres plataformas del stack (sección 3).
+ * Único lugar de donde salen la detección, los mensajes de ImportFromLink y las etiquetas de
+ * ClipCard — yt-dlp en sí soporta muchas más plataformas (ver supportedsites.md en la raíz del
+ * repo), pero acá nos limitamos a las 10 más populares para no abrumar la UI. Para sumar una
+ * plataforma nueva: un valor más en ClipPlatform (acá y en el enum de ClipPlatform.java, con su
+ * migración ALTER TYPE) + una entrada más en esta lista — el resto (detección de hostname,
+ * texto de ayuda/error, etiqueta en el feed) se arma solo a partir de esto, sin tocar nada más.
+ */
+export const SUPPORTED_PLATFORMS: PlatformConfig[] = [
+  { value: 'YOUTUBE', label: 'YouTube', hostnames: ['youtube.com', 'youtu.be'] },
+  { value: 'TIKTOK', label: 'TikTok', hostnames: ['tiktok.com'] },
+  { value: 'INSTAGRAM', label: 'Instagram', hostnames: ['instagram.com'] },
+  { value: 'FACEBOOK', label: 'Facebook', hostnames: ['facebook.com', 'fb.watch'] },
+  { value: 'TWITTER', label: 'Twitter/X', hostnames: ['twitter.com', 'x.com'] },
+  { value: 'TWITCH', label: 'Twitch', hostnames: ['twitch.tv', 'clips.twitch.tv'] },
+  { value: 'VIMEO', label: 'Vimeo', hostnames: ['vimeo.com'] },
+  { value: 'REDDIT', label: 'Reddit', hostnames: ['reddit.com'] },
+  { value: 'DAILYMOTION', label: 'Dailymotion', hostnames: ['dailymotion.com', 'dai.ly'] },
+  { value: 'SOUNDCLOUD', label: 'SoundCloud', hostnames: ['soundcloud.com'] },
+];
+
+/**
+ * Detección liviana solo para nuestra propia metadata (source_platform, ver docs/SPEC.md
+ * sección 7) — la descarga real la hace yt-dlp server-side (ClipService.importFromLink), que
+ * ya valida por su cuenta si la URL es de verdad un video válido; acá alcanza con reconocer el
+ * dominio para no dejar pasar un link de una plataforma que no ofrecemos en el selector.
  */
 export function detectPlatform(rawUrl: string): DetectedSource | null {
   let url: URL;
@@ -18,22 +46,9 @@ export function detectPlatform(rawUrl: string): DetectedSource | null {
     return null;
   }
   const host = url.hostname.replace(/^www\./, '').replace(/^m\./, '');
+  const match = SUPPORTED_PLATFORMS.find((p) => p.hostnames.includes(host));
+  if (!match) return null;
 
-  if (host === 'youtube.com' || host === 'youtu.be') {
-    const id = host === 'youtu.be' ? url.pathname.slice(1) : url.searchParams.get('v');
-    return id ? { platform: 'YOUTUBE', externalId: id } : null;
-  }
-
-  if (host === 'vimeo.com') {
-    const id = url.pathname.split('/').filter(Boolean)[0] ?? null;
-    return id && /^\d+$/.test(id) ? { platform: 'VIMEO', externalId: id } : null;
-  }
-
-  if (host === 'twitch.tv' || host === 'clips.twitch.tv') {
-    const segments = url.pathname.split('/').filter(Boolean);
-    const id = segments.at(-1) ?? null;
-    return id ? { platform: 'TWITCH', externalId: id } : null;
-  }
-
-  return null;
+  const externalId = url.pathname.split('/').filter(Boolean).at(-1) ?? null;
+  return { platform: match.value, externalId };
 }

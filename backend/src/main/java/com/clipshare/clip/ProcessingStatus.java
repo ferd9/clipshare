@@ -1,5 +1,5 @@
 package com.clipshare.clip;
 
 public enum ProcessingStatus {
-    QUEUED, PROCESSING, READY, FAILED
+    QUEUED, PROCESSING, AWAITING_EDIT, READY, FAILED
 }

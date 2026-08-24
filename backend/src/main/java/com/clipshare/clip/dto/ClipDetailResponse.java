@@ -17,6 +17,12 @@ public record ClipDetailResponse(
         ClipPlatform sourcePlatform,
         ProcessingStatus processingStatus,
         ModerationStatus moderationStatus,
+        String processingError,
+        String title,
+        String sourceTitle,
+        /** Link original (solo EXTERNAL_CAPTURE) — de dónde yt-dlp descargó el video, ver
+         * Clip.sourceUrl. Antes se guardaba pero no se exponía por la API. */
+        String sourceUrl,
         Integer durationMs,
         Integer width,
         Integer height,
@@ -30,7 +36,8 @@ public record ClipDetailResponse(
     public static ClipDetailResponse from(Clip clip) {
         // El video/thumbnail solo se sirve una vez publicado — antes de eso vive en una ruta
         // no expuesta por WebConfig (ver docs/SPEC.md sección 10: nada se muestra públicamente
-        // sin pasar antes por moderación).
+        // sin pasar antes por moderación). Mientras está AWAITING_EDIT, el frontend usa
+        // GET /api/clips/{id}/editable (autenticado, solo el dueño) en su lugar.
         boolean published = clip.getModerationStatus() == ModerationStatus.PUBLISHED;
         return new ClipDetailResponse(
                 clip.getId(),
@@ -40,6 +47,10 @@ public record ClipDetailResponse(
                 clip.getSourcePlatform(),
                 clip.getProcessingStatus(),
                 clip.getModerationStatus(),
+                clip.getProcessingError(),
+                clip.getTitle(),
+                clip.getSourceTitle(),
+                clip.getSourceUrl(),
                 clip.getDurationMs(),
                 clip.getWidth(),
                 clip.getHeight(),

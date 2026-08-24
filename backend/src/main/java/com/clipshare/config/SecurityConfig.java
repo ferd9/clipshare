@@ -51,19 +51,25 @@ public class SecurityConfig {
     }
 
     /**
-     * Cadena aparte para /media/clips/** (video/thumbnail servidos por WebConfig), con más
-     * prioridad (@Order menor) que la cadena principal. La necesitamos separada porque Spring
-     * Security agrega por defecto {@code Cache-Control: no-store} a toda respuesta — y Chrome
-     * directamente se cuelga cargando un <video> cuando el recurso llega marcado como no
-     * cacheable (el <video> se queda en HAVE_NOTHING para siempre, sin emitir ningún error).
-     * Acá lo desactivamos y dejamos que el Cache-Control público lo ponga el resource handler
-     * de Spring MVC (ver WebConfig), que es el lugar correcto para cachear contenido estático.
+     * Cadena aparte para /media/clips/**, /media/attachments/** y /media/audio/** (todos
+     * servidos por WebConfig como recursos estáticos públicos), con más prioridad (@Order
+     * menor) que la cadena principal. La necesitamos separada porque Spring Security agrega
+     * por defecto {@code Cache-Control: no-store} a toda respuesta — y Chrome directamente se
+     * cuelga cargando un <video>/<audio> cuando el recurso llega marcado como no cacheable (se
+     * queda en HAVE_NOTHING para siempre, sin emitir ningún error). Acá lo desactivamos y
+     * dejamos que el Cache-Control público lo ponga el resource handler de Spring MVC (ver
+     * WebConfig), que es el lugar correcto para cachear contenido estático.
+     *
+     * /media/audio/** faltó acá cuando se agregó en WebConfig (AudioTrackService) — sin este
+     * matcher cae en la cadena principal de abajo, que exige auth para todo lo no listado
+     * explícitamente, y el <audio> del picker de reemplazo terminaba pidiendo el archivo sin
+     * Authorization (un <audio src> no manda headers custom) → 401 → "no se puede reproducir".
      */
     @Bean
     @Order(1)
     public SecurityFilterChain mediaSecurityFilterChain(HttpSecurity http) throws Exception {
         http
-                .securityMatcher("/media/clips/**", "/media/attachments/**")
+                .securityMatcher("/media/clips/**", "/media/attachments/**", "/media/audio/**")
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

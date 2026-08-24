@@ -2,13 +2,17 @@ package com.clipshare.clip;
 
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.UUID;
 
 /**
- * Encola el procesamiento de un clip (ffmpeg + normalización) para que lo levante el
- * worker, desacoplado de la API vía Redis (ver docs/SPEC.md sección 4). Cola simple:
- * una lista de Redis usada como FIFO (LPUSH acá, RPOP en {@link com.clipshare.worker.ClipProcessingWorker}).
+ * Encola trabajo para el worker vía Redis (docs/SPEC.md sección 4): una lista usada como
+ * FIFO (LPUSH acá, RPOP en {@link com.clipshare.worker.ClipProcessingWorker}). El mensaje es
+ * JSON, no un UUID plano como antes — desde el pipeline de import server-side hay dos fases
+ * bien distintas (STAGE: descargar/normalizar; FINALIZE: recortar+mux de audio+moderar), y
+ * el worker necesita saber cuál de las dos le toca correr para un clip dado sin tener que
+ * inferirlo de processing_status (que sigue reflejando el estado general, no la fase de cola).
  */
 @Component
 public class ClipQueuePublisher {
@@ -16,12 +20,26 @@ public class ClipQueuePublisher {
     public static final String QUEUE_KEY = "queue:clip-processing";
 
     private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
 
-    public ClipQueuePublisher(StringRedisTemplate redisTemplate) {
+    public ClipQueuePublisher(StringRedisTemplate redisTemplate, ObjectMapper objectMapper) {
         this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
     }
 
-    public void enqueue(UUID clipId) {
-        redisTemplate.opsForList().leftPush(QUEUE_KEY, clipId.toString());
+    public record ClipJob(UUID clipId, ClipJobType jobType) {
+    }
+
+    public void enqueueStage(UUID clipId) {
+        enqueue(new ClipJob(clipId, ClipJobType.STAGE));
+    }
+
+    public void enqueueFinalize(UUID clipId) {
+        enqueue(new ClipJob(clipId, ClipJobType.FINALIZE));
+    }
+
+    private void enqueue(ClipJob job) {
+        // Jackson 3: writeValueAsString tira JacksonException (unchecked), no hace falta try/catch.
+        redisTemplate.opsForList().leftPush(QUEUE_KEY, objectMapper.writeValueAsString(job));
     }
 }

@@ -7,6 +7,7 @@ import { AppShell } from './layout/AppShell';
 import { ClipFeed } from './clips/ClipFeed';
 import { UploadOwnClip } from './clips/UploadOwnClip';
 import { ImportFromLink } from './clips/ImportFromLink';
+import { ClipEditPage } from './clips/ClipEditPage';
 import { DmcaPage } from './legal/DmcaPage';
 import { ReportForm } from './legal/ReportForm';
 import { AdminRoute } from './admin/AdminRoute';
@@ -26,6 +27,7 @@ function App() {
             <Route element={<ProtectedRoute />}>
               <Route path="/upload" element={<UploadOwnClip />} />
               <Route path="/import" element={<ImportFromLink />} />
+              <Route path="/clips/:id/edit" element={<ClipEditPage />} />
             </Route>
             <Route element={<AdminRoute />}>
               <Route path="/admin/reports" element={<AdminReportsPage />} />
