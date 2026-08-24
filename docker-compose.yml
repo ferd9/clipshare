@@ -8,7 +8,10 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - VITE_API_BASE_URL=http://localhost:8080
+      # Sobreescribible vía un .env sin trackear (ver .gitignore) — necesario para despliegues
+      # donde el backend no vive en localhost (ej. túneles de Cloudflare para pruebas en la
+      # nube, cada uno con su propia URL efímera que no tiene sentido commitear).
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8080}
     command: npm run dev -- --host
 
   backend:
@@ -30,6 +33,8 @@ services:
       - APP_TURNSTILE_PROVIDER=mock
       - TURNSTILE_SECRET_KEY=change-me-in-dev
       - ANON_SESSION_COOKIE_SECRET=change-me-in-dev
+      # Mismo criterio que VITE_API_BASE_URL de arriba — ver SecurityConfig.allowedOrigins.
+      - APP_CORS_ALLOWED_ORIGINS=${APP_CORS_ALLOWED_ORIGINS:-http://localhost:5173}
     volumes:
       - ./backend:/app
       - clip-storage:/data/clips

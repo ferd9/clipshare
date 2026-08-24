@@ -4,6 +4,7 @@ import com.clipshare.auth.JwtAuthenticationFilter;
 import com.clipshare.auth.JwtService;
 import com.clipshare.user.UserRepository;
 import tools.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -32,6 +33,13 @@ import java.util.List;
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    // Separado por comas — así un despliegue (ej. túneles de Cloudflare para pruebas en la
+    // nube) puede agregar su propio origen sin tocar el default de dev local. El valor real
+    // nunca se commitea (va en un .env sin trackear, ver docker-compose.yml/.gitignore) porque
+    // en el caso de un túnel es efímero (cambia cada vez que se reinicia cloudflared).
+    @Value("${app.cors.allowed-origins:http://localhost:5173}")
+    private String allowedOrigins;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -126,8 +134,9 @@ public class SecurityConfig {
 
     private CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // En dev, el frontend (Vite) corre en otro origen; en prod se restringe al dominio real.
-        configuration.setAllowedOrigins(List.of("http://localhost:5173"));
+        // En dev, el frontend (Vite) corre en otro origen; en despliegues fuera de localhost
+        // (ver app.cors.allowed-origins más arriba) se suma el/los origen(es) reales.
+        configuration.setAllowedOrigins(List.of(allowedOrigins.split(",")));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         configuration.setAllowCredentials(true);
