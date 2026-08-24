@@ -34,6 +34,9 @@ server:
 
 # Config propia de la app (ver docs/SPEC.md secciones 6 y 13)
 app:
+  cors:
+    # Separado por comas si hace falta más de uno — ver SecurityConfig.corsConfigurationSource.
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173}
   jwt:
     secret: ${JWT_SECRET:change-me-in-dev}
     access-token-ttl-minutes: 20   # corta duración a propósito, ver docs/SPEC.md sección 12
