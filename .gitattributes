@@ -1,0 +1,8 @@
+# Fuerza LF (no CRLF) para lo que corre en Linux, sin importar el sistema operativo de quien
+# commitea — evita repetir el problema que tuvimos con backend/mvnw (perdió el bit de
+# ejecución al commitear desde Windows) y el riesgo equivalente de finales de línea CRLF
+# rompiendo el shebang de un script bash al clonarse en la VM (Linux).
+* text=auto
+*.sh text eol=lf
+mvnw text eol=lf
+*.bat text eol=crlf

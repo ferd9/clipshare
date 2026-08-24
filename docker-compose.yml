@@ -13,6 +13,10 @@ services:
       # nube, cada uno con su propia URL efímera que no tiene sentido commitear).
       - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8080}
     command: npm run dev -- --host
+    # unless-stopped: si la VM se reinicia o el contenedor se cae solo, Docker lo levanta de
+    # nuevo sin intervención manual (no reinicia si alguien lo paró a propósito con
+    # "docker compose stop"). Ver scripts/start-tunnels.sh para el resto del arranque en frío.
+    restart: unless-stopped
 
   backend:
     build:
@@ -42,6 +46,7 @@ services:
     depends_on:
       - postgres
       - redis
+    restart: unless-stopped
 
   worker:
     build:
@@ -63,6 +68,7 @@ services:
     depends_on:
       - postgres
       - redis
+    restart: unless-stopped
 
   postgres:
     image: postgres:16
@@ -74,11 +80,13 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
 
   redis:
     image: redis:7
     ports:
       - "6379:6379"
+    restart: unless-stopped
 
 volumes:
   pgdata:
