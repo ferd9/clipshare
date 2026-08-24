@@ -47,6 +47,17 @@
   text-align: center;
 }
 
+.app-shell-outlet {
+  /* flex:1 + min-height:0 es el truco de siempre para "ocupar el resto de la columna flex y
+   * permitir que un hijo scrollee puertas adentro en vez de estirar la página entera" — sin
+   * el min-height:0, un hijo con overflow no se recorta al espacio disponible, sigue creciendo
+   * con su contenido como si esto fuera un bloque normal. */
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .app-footer {
   margin-top: 3rem;
   padding: 1.5rem;

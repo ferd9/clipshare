@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { extractErrorMessage } from '../auth/AuthContext';
 import { getComments } from './commentsApi';
 import { CommentForm } from './CommentForm';
@@ -13,8 +13,17 @@ const PAGE_SIZE = 20;
  * Coub/TikTok), así que vive expandible dentro de la propia tarjeta, ver ClipCard.tsx.
  * Nota: las respuestas (parent_comment_id) no se muestran anidadas visualmente todavía —
  * aparecen en la lista plana ordenadas por fecha como cualquier otro comentario nuevo. */
-export function CommentSection({ clipId }: { clipId: string }) {
-  const [open, setOpen] = useState(false);
+interface CommentSectionProps {
+  clipId: string;
+  /** true cuando este componente vive dentro de un panel que el propio caller ya abrió/cerró
+   * (ver ClipCard, feed estilo TikTok con panel deslizable) — oculta el botón interno de
+   * "Comentarios"/"Ocultar comentarios" (sería un segundo toggle redundante) y carga los
+   * comentarios directo al montar, en vez de esperar un click. */
+  alwaysOpen?: boolean;
+}
+
+export function CommentSection({ clipId, alwaysOpen = false }: CommentSectionProps) {
+  const [open, setOpen] = useState(alwaysOpen);
   const [comments, setComments] = useState<CommentSummary[] | null>(null);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -32,6 +41,13 @@ export function CommentSection({ clipId }: { clipId: string }) {
       setError(extractErrorMessage(err, 'No se pudieron cargar los comentarios'));
     }
   }
+
+  // Equivalente a lo que dispara handleToggle en el modo normal, pero sin esperar un click —
+  // alwaysOpen implica que ya "está abierto" desde que este componente se monta.
+  useEffect(() => {
+    if (alwaysOpen) void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alwaysOpen, clipId]);
 
   function handleToggle() {
     setOpen((current) => {
@@ -66,9 +82,11 @@ export function CommentSection({ clipId }: { clipId: string }) {
 
   return (
     <div className="comment-section">
-      <button type="button" className="comment-toggle" onClick={handleToggle}>
-        {open ? 'Ocultar comentarios' : 'Comentarios'}
-      </button>
+      {!alwaysOpen && (
+        <button type="button" className="comment-toggle" onClick={handleToggle}>
+          {open ? 'Ocultar comentarios' : 'Comentarios'}
+        </button>
+      )}
 
       {open && (
         <div className="comment-section-body">

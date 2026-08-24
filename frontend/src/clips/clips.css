@@ -1,63 +1,108 @@
+/* Feed estilo TikTok/Shorts (reemplaza la vieja grilla) — cada clip ocupa toda la altura
+ * disponible (heredada de .app-shell-outlet, ver layout.css) y el scroll queda "encajado" en
+ * cada uno (scroll-snap), como pasar de un video al siguiente con swipe. */
 .clip-feed {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 1.25rem;
-  max-width: 72rem;
-  margin: 0 auto;
-  padding: 1.5rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  /* Sin scrollbar visible a los costados — el gesto es scroll/swipe, no una barra que arrastrar
+   * (igual que TikTok/Shorts). Sigue siendo perfectamente navegable con teclado/mouse wheel. */
+  scrollbar-width: none;
 }
 
-.clip-card {
+.clip-feed::-webkit-scrollbar {
+  display: none;
+}
+
+.clip-feed-slide {
+  position: relative;
+  height: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  text-align: left;
-}
-
-.clip-card-video {
-  width: 100%;
-  aspect-ratio: 9 / 16;
+  align-items: center;
+  justify-content: center;
   background: #000;
-  border-radius: 0.5rem;
-  /* contain, no cover: un clip horizontal debe verse COMPLETO dentro del marco vertical del
-   * feed (con franjas negras arriba/abajo, ver background de acá arriba), no recortado a los
-   * costados para simular que es vertical. Un clip ya vertical no cambia de verse — su relación
-   * de aspecto ya es ~9:16, así que contain y cover dan prácticamente el mismo resultado ahí.
-   * En pantalla completa (los controles nativos de <video controls>, más abajo) ya se ve en su
-   * proporción horizontal real sin que haga falta nada más acá. */
-  object-fit: contain;
+  overflow: hidden;
 }
 
-.clip-card-title {
-  margin: 0;
+.clip-feed-video {
+  max-width: 100%;
+  max-height: 100%;
+  /* contain, no cover: un clip horizontal debe verse COMPLETO dentro del marco (con franjas
+   * negras arriba/abajo, ver background de .clip-feed-slide), no recortado a los costados para
+   * simular que es vertical. Un clip ya vertical no cambia de verse. */
+  object-fit: contain;
+  cursor: pointer;
+}
+
+/* Título + metadata superpuestos abajo a la izquierda, con degradé para que se lean encima
+ * del video sin importar cuán clara sea la imagen de fondo — mismo patrón que TikTok/Shorts. */
+.clip-feed-overlay {
+  position: absolute;
+  left: 0;
+  right: 4.5rem;
+  bottom: 0;
+  padding: 3rem 1rem 1.25rem;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.75), transparent);
+  color: #fff;
+  text-align: left;
+  pointer-events: none;
+}
+
+.clip-feed-title {
+  margin: 0 0 0.35rem;
   font-size: 0.95rem;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
-.clip-card-meta {
+.clip-feed-meta {
   display: flex;
-  justify-content: space-between;
-  font-size: 0.85rem;
-  opacity: 0.8;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  font-size: 0.8rem;
+  opacity: 0.85;
 }
 
-.clip-card-source {
-  font-size: 0.75rem;
-  opacity: 0.6;
-}
-
-.clip-card-footer {
+/* Rieles de íconos a la derecha (silenciar, comentarios, reportar) — apilados verticalmente,
+ * flotando sobre el video, igual que el costado derecho de TikTok/Shorts. */
+.clip-feed-actions {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 1.5rem;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.clip-feed-action-button {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 1.3rem;
+  display: flex;
   align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  text-decoration: none;
 }
 
-.clip-card-report {
-  font-size: 0.75rem;
-  opacity: 0.6;
+.clip-feed-error {
+  position: absolute;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
 }
 
 .clips-loading,
@@ -67,25 +112,48 @@
   margin-top: 3rem;
 }
 
-.clip-feed-more {
+/* Panel de comentarios deslizable (ver ClipCard) — se superpone al video en vez de mostrarse
+ * siempre debajo como en la vieja grilla. */
+.clip-feed-comments-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
-  justify-content: center;
-  padding: 0 1.5rem 2rem;
+  align-items: flex-end;
+  z-index: 2;
 }
 
-.clip-feed-more button {
-  padding: 0.6rem 1.5rem;
-  border-radius: 0.4rem;
-  border: 1px solid var(--border);
-  background: transparent;
+.clip-feed-comments-panel {
+  width: 100%;
+  max-height: 70%;
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 1rem 1rem 0 0;
+  padding: 1rem;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.clip-feed-comments-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.clip-feed-comments-header h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.clip-feed-comments-header button {
+  background: none;
+  border: none;
   color: inherit;
-  font-size: 0.95rem;
+  font-size: 1.5rem;
+  line-height: 1;
   cursor: pointer;
-}
-
-.clip-feed-more button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+  padding: 0;
 }
 
 .clips-error {

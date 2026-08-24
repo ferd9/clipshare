@@ -56,7 +56,16 @@
   margin: 0 auto;
   text-align: center;
   border-inline: 1px solid var(--border);
-  min-height: 100svh;
+  /* height fija (no min-height): con solo un mínimo, flexbox nunca tiene una altura DEFINIDA
+   * de la que repartir espacio — flex:1 en los hijos (ver .app-shell-outlet) termina sin
+   * efecto real, todo crece a su alto de contenido en vez de acotarse a la pantalla. Esto es
+   * justo lo que necesita el feed estilo TikTok/Shorts (ver .clip-feed en clips.css) para
+   * ocupar exactamente el espacio debajo del Nav. overflow-y:auto acá reemplaza el scroll de
+   * la página completa (que antes hacía <body>) por uno propio de #root — mismo resultado
+   * para el resto de las páginas (Nav se sigue yendo con el scroll, Footer se sigue
+   * alcanzando al final), solo cambia dónde vive la barra de scroll. */
+  height: 100svh;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;

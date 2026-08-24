@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { extractErrorMessage } from '../auth/AuthContext';
 import { ClipCard } from './ClipCard';
@@ -6,14 +6,33 @@ import { getFeed } from './clipsApi';
 import type { ClipDetail } from './types';
 import './clips.css';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
+// Cuántos clips le faltan al usuario para llegar al final de lo ya cargado antes de pedir la
+// próxima página — pedirla apenas se acerca, no cuando ya llegó, para que el scroll nunca se
+// quede esperando (igual que TikTok/Shorts, que precargan antes de que haga falta).
+const PREFETCH_REMAINING = 3;
 
+/**
+ * Feed público estilo TikTok/Shorts (reemplaza la vieja grilla, docs/SPEC.md): un clip ocupa
+ * toda la altura disponible (ver .clip-feed en clips.css, con scroll-snap vertical), se pasa
+ * al siguiente con scroll/swipe. El "clip activo" (el que más se ve en pantalla, ver
+ * ClipCard/IntersectionObserver) es el único que reproduce — y también dispara la carga de
+ * la próxima página cuando el usuario se acerca al final de lo ya traído.
+ */
 export function ClipFeed() {
   const [clips, setClips] = useState<ClipDetail[] | null>(null);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+  // Silenciado por default (autoplay con sonido lo bloquea el navegador) — compartido entre
+  // TODOS los clips, no por clip: una vez que el usuario activa el sonido, se mantiene activo
+  // al pasar al siguiente, en vez de volver a silenciarse solo cada vez.
+  const [muted, setMuted] = useState(true);
+
+  // Ref (no state) para el guard de "ya hay un pedido de más clips en curso" — evita que el
+  // efecto de abajo dispare pedidos duplicados mientras el primero todavía no resolvió.
+  const loadingMoreRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,20 +51,32 @@ export function ClipFeed() {
     };
   }, []);
 
-  async function handleLoadMore() {
-    setLoadingMore(true);
-    setError(null);
-    try {
-      const result = await getFeed(page + 1, PAGE_SIZE);
-      setClips((current) => [...(current ?? []), ...result.items]);
-      setPage(result.page);
-      setTotalPages(result.totalPages);
-    } catch (err) {
-      setError(extractErrorMessage(err, 'No se pudieron cargar más clips'));
-    } finally {
-      setLoadingMore(false);
+  const loadMore = useCallback(
+    async (currentPage: number) => {
+      loadingMoreRef.current = true;
+      try {
+        const result = await getFeed(currentPage + 1, PAGE_SIZE);
+        setClips((current) => [...(current ?? []), ...result.items]);
+        setPage(result.page);
+        setTotalPages(result.totalPages);
+      } catch (err) {
+        setError(extractErrorMessage(err, 'No se pudieron cargar más clips'));
+      } finally {
+        loadingMoreRef.current = false;
+      }
+    },
+    [],
+  );
+
+  // Dispara la precarga en cuanto el clip activo entra en la zona de "casi al final" — sin
+  // esperar a un botón, sin esperar a llegar literalmente al último.
+  useEffect(() => {
+    if (!clips) return;
+    const remaining = clips.length - 1 - activeIndex;
+    if (remaining <= PREFETCH_REMAINING && page + 1 < totalPages && !loadingMoreRef.current) {
+      void loadMore(page);
     }
-  }
+  }, [activeIndex, clips, page, totalPages, loadMore]);
 
   if (error && clips === null) return <p className="clips-error">{error}</p>;
   if (clips === null) return <p className="clips-loading">Cargando…</p>;
@@ -60,20 +91,17 @@ export function ClipFeed() {
   }
 
   return (
-    <div>
-      <div className="clip-feed">
-        {clips.map((clip) => (
-          <ClipCard key={clip.id} clip={clip} />
-        ))}
-      </div>
-      {error && <p className="clips-error">{error}</p>}
-      {page + 1 < totalPages && (
-        <div className="clip-feed-more">
-          <button type="button" onClick={() => void handleLoadMore()} disabled={loadingMore}>
-            {loadingMore ? 'Cargando…' : 'Cargar más'}
-          </button>
-        </div>
-      )}
+    <div className="clip-feed">
+      {clips.map((clip, index) => (
+        <ClipCard
+          key={clip.id}
+          clip={clip}
+          muted={muted}
+          onToggleMuted={() => setMuted((m) => !m)}
+          onActive={() => setActiveIndex(index)}
+        />
+      ))}
+      {error && <p className="clip-feed-error">{error}</p>}
     </div>
   );
 }
