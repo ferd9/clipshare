@@ -3,6 +3,9 @@ import { useMediaTrimmer } from './useMediaTrimmer';
 import { useWaveform } from './useWaveform';
 
 const TAP_THRESHOLD_PX = 4;
+// "Sorprendeme" (ver handleSurpriseMe): largo mínimo del fragmento al azar — pedido explícito,
+// por debajo de esto ya no tendría sentido "sorprender" con algo tan corto.
+const SURPRISE_MIN_MS = 10_000;
 
 function formatSeconds(ms: number): string {
   return (ms / 1000).toFixed(1) + 's';
@@ -37,6 +40,11 @@ interface ClipTrimmerProps {
    * cero) — ClipEditPage lo usa para reiniciar la reproducción del audio importado (si hay
    * uno), dirección inversa de restartSignal de arriba. */
   onPositionChange?: () => void;
+  /** Se dispara después de que "Sorprendeme" (ver handleSurpriseMe) ya aplicó un fragmento al
+   * azar al video — ClipEditPage lo usa para pedirle a AudioTrimmer que también reacomode el
+   * inicio del audio importado al azar (su duración ya queda sincronizada con la del video por
+   * targetLengthMs, así que acá solo hace falta mover la posición). */
+  onSurpriseMe?: () => void;
 }
 
 /**
@@ -68,6 +76,7 @@ export function ClipTrimmer({
   onVolumeChange,
   restartSignal,
   onPositionChange,
+  onSurpriseMe,
 }: ClipTrimmerProps) {
   const trimmer = useMediaTrimmer(videoUrl, maxDurationMs);
   // Pista de audio ORIGINAL del clip, como referencia visual (misma forma de onda que se usa
@@ -287,6 +296,18 @@ export function ClipTrimmer({
     setMinimapDragging(false);
   }
 
+  // "Sorprendeme": un fragmento al azar de entre 10s (SURPRISE_MIN_MS) y el máximo permitido
+  // (maxDurationMs, acotado a la duración real si el video mide menos que eso) — sin sentido
+  // si el video no llega ni a los 10s, ver disabled del botón más abajo.
+  function handleSurpriseMe() {
+    if (trimmer.durationMs < SURPRISE_MIN_MS) return;
+    const maxLen = Math.min(maxDurationMs, trimmer.durationMs);
+    const length = SURPRISE_MIN_MS + Math.random() * (maxLen - SURPRISE_MIN_MS);
+    const start = Math.random() * (trimmer.durationMs - length);
+    trimmer.setRangeFromAnchor(start, start + length);
+    onSurpriseMe?.();
+  }
+
   if (trimmer.error) {
     return (
       <p className="clips-error" role="alert">
@@ -350,9 +371,24 @@ export function ClipTrimmer({
         </div>
       </div>
 
-      <p className="clip-trimmer-duration">
-        {formatSeconds(trimmer.trimEndMs - trimmer.trimStartMs)} seleccionados (máx. {formatSeconds(maxDurationMs)})
-      </p>
+      <div className="clip-trimmer-duration-row">
+        <p className="clip-trimmer-duration">
+          {formatSeconds(trimmer.trimEndMs - trimmer.trimStartMs)} seleccionados (máx. {formatSeconds(maxDurationMs)})
+        </p>
+        <button
+          type="button"
+          className="clip-trimmer-surprise-button"
+          onClick={handleSurpriseMe}
+          disabled={trimmer.durationMs < SURPRISE_MIN_MS}
+          title={
+            trimmer.durationMs < SURPRISE_MIN_MS
+              ? 'El video dura menos de 10s, no hay margen para sortear un fragmento'
+              : 'Elegir un fragmento al azar (10-40s)'
+          }
+        >
+          🎲 Sorprendeme
+        </button>
+      </div>
 
       {selectionOutsideView && (
         <p className="clip-trimmer-hint">La selección quedó fuera de la vista — arrastrá el recuadro de abajo hasta ahí.</p>

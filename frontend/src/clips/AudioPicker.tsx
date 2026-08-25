@@ -26,6 +26,7 @@ interface AudioPickerProps {
   targetLengthMs?: number;
   onPositionChange?: () => void;
   restartSignal?: number;
+  randomizeSignal?: number;
 }
 
 /**
@@ -57,6 +58,7 @@ export function AudioPicker({
   targetLengthMs,
   onPositionChange,
   restartSignal,
+  randomizeSignal,
 }: AudioPickerProps) {
   const [linkUrl, setLinkUrl] = useState('');
   const [busy, setBusy] = useState(false);
@@ -124,6 +126,7 @@ export function AudioPicker({
           targetLengthMs={targetLengthMs}
           onPositionChange={onPositionChange}
           restartSignal={restartSignal}
+          randomizeSignal={randomizeSignal}
         />
 
         <label className="editor-radio">

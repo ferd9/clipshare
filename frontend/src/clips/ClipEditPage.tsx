@@ -47,6 +47,10 @@ export function ClipEditPage() {
   // posición o la longitud del fragmento de VIDEO — AudioTrimmer lo escucha para reiniciar su
   // propia reproducción (ver ClipTrimmer.onPositionChange / AudioTrimmer.restartSignal).
   const [audioRestartSignal, setAudioRestartSignal] = useState(0);
+  // Se incrementa cada vez que el usuario usa "Sorprendeme" en el video — AudioTrimmer lo
+  // escucha para reacomodar el inicio del audio importado a un punto al azar (ver
+  // ClipTrimmer.onSurpriseMe / AudioTrimmer.randomizeSignal).
+  const [audioRandomizeSignal, setAudioRandomizeSignal] = useState(0);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -207,6 +211,7 @@ export function ClipEditPage() {
           onVolumeChange={setOriginalAudioVolume}
           restartSignal={videoRestartSignal}
           onPositionChange={() => setAudioRestartSignal((n) => n + 1)}
+          onSurpriseMe={() => setAudioRandomizeSignal((n) => n + 1)}
         />
       )}
 
@@ -233,6 +238,7 @@ export function ClipEditPage() {
           targetLengthMs={trimEndMs - trimStartMs}
           onPositionChange={() => setVideoRestartSignal((n) => n + 1)}
           restartSignal={audioRestartSignal}
+          randomizeSignal={audioRandomizeSignal}
         />
 
         {!replacementAudio && (

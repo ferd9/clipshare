@@ -41,6 +41,11 @@ interface AudioTrimmerProps {
    * fragmento de VIDEO (ver ClipTrimmer.onPositionChange) — reinicia la reproducción de este
    * audio a su propio trimStart, dirección inversa de onPositionChange de arriba. */
   restartSignal?: number;
+  /** Se incrementa cuando el usuario usa "Sorprendeme" (ver ClipTrimmer.handleSurpriseMe) —
+   * reacomoda el INICIO del fragmento de audio a un punto al azar, preservando la longitud
+   * actual (ya sincronizada con la del video vía targetLengthMs, así que acá solo hace falta
+   * mover la posición). */
+  randomizeSignal?: number;
 }
 
 /**
@@ -66,6 +71,7 @@ export function AudioTrimmer({
   targetLengthMs,
   onPositionChange,
   restartSignal,
+  randomizeSignal,
 }: AudioTrimmerProps) {
   const trimmer = useAudioTrimmer(durationMs, maxDurationMs);
   const peaks = useWaveform(audioUrl);
@@ -134,6 +140,16 @@ export function AudioTrimmer({
     previewRef.current.currentTime = trimmer.trimStartMs / 1000;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restartSignal]);
+
+  // Nueva posición al azar para el fragmento de audio cuando el usuario usa "Sorprendeme" (ver
+  // ClipTrimmer.handleSurpriseMe) — mantiene la longitud actual (setWindowStartMs no la toca) y
+  // deja que el propio clamp interno de useAudioTrimmer se encargue de no pasarse del final.
+  useEffect(() => {
+    if (randomizeSignal === undefined) return;
+    const length = trimmer.trimEndMs - trimmer.trimStartMs;
+    trimmer.setWindowStartMs(Math.random() * Math.max(durationMs - length, 0));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [randomizeSignal]);
 
   // Se avisa al padre igual que con el rango de recorte (arriba) — lo necesita para mandarlo
   // en POST /finalize cuando corresponda mezclar audio original + reemplazo.

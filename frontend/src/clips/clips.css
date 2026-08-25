@@ -488,6 +488,36 @@
   text-align: center;
 }
 
+.clip-trimmer-duration-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* Píldora con el color de acento — distinta al resto de los botones del editor a propósito,
+ * para que se note que es una acción "extra"/divertida, no un control más del recorte. */
+.clip-trimmer-surprise-button {
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  color: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.clip-trimmer-surprise-button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.clip-trimmer-surprise-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* Compartido entre ClipTrimmer (video) y AudioTrimmer (audio de reemplazo) — mismo control de
  * volumen, mismo look en los dos. */
 .media-volume-row {
