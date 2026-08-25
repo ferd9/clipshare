@@ -187,6 +187,81 @@
   text-align: left;
 }
 
+/* Pantalla unificada de subir/importar (ver NewClipPage) — mismo ancho/centrado que
+ * .upload-page (arriba), pero como flex column propio para el gap parejo entre la zona de
+ * subida, el form de upload (si hay archivo elegido), el divisor y el form de importar. */
+.new-clip-page {
+  max-width: 28rem;
+  margin: 3rem auto;
+  padding: 0 1.5rem;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* Estilo "dropzone" — un rectángulo grande y clickeable en vez de un input nativo chico, más
+ * intuitivo para señalar "acá se sube un video" a simple vista. */
+.new-clip-upload-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 2.25rem 1rem;
+  border: 2px dashed var(--border);
+  border-radius: 0.75rem;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  text-align: center;
+  font: inherit;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.new-clip-upload-zone:hover,
+.new-clip-upload-zone:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.new-clip-upload-icon {
+  font-size: 2.25rem;
+  line-height: 1;
+}
+
+.new-clip-upload-label {
+  font-weight: 600;
+  font-size: 1rem;
+  /* Corta nombres de archivo largos en vez de desbordar la caja. */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.new-clip-upload-hint {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+/* Línea a cada lado del "o" — separador entre las dos formas de agregar un clip. */
+.new-clip-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  opacity: 0.6;
+  font-size: 0.85rem;
+}
+
+.new-clip-divider::before,
+.new-clip-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
 .upload-form {
   display: flex;
   flex-direction: column;

@@ -8,8 +8,7 @@ import { ForgotPasswordPage } from './auth/ForgotPasswordPage';
 import { ResetPasswordPage } from './auth/ResetPasswordPage';
 import { AppShell } from './layout/AppShell';
 import { ClipFeed } from './clips/ClipFeed';
-import { UploadOwnClip } from './clips/UploadOwnClip';
-import { ImportFromLink } from './clips/ImportFromLink';
+import { NewClipPage } from './clips/NewClipPage';
 import { ClipEditPage } from './clips/ClipEditPage';
 import { DmcaPage } from './legal/DmcaPage';
 import { ReportForm } from './legal/ReportForm';
@@ -31,8 +30,10 @@ function App() {
             <Route path="/legal/dmca" element={<DmcaPage />} />
             <Route path="/report/:clipId" element={<ReportForm />} />
             <Route element={<ProtectedRoute />}>
-              <Route path="/upload" element={<UploadOwnClip />} />
-              <Route path="/import" element={<ImportFromLink />} />
+              <Route path="/upload" element={<NewClipPage />} />
+              {/* /import queda como alias por si hay algún link viejo guardado — la pantalla
+               * ahora es una sola (ver NewClipPage). */}
+              <Route path="/import" element={<Navigate to="/upload" replace />} />
               <Route path="/clips/:id/edit" element={<ClipEditPage />} />
             </Route>
             <Route element={<AdminRoute />}>

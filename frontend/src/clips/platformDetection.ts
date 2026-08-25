@@ -12,7 +12,7 @@ export interface PlatformConfig {
 }
 
 /**
- * Único lugar de donde salen la detección, los mensajes de ImportFromLink y las etiquetas de
+ * Único lugar de donde salen la detección, los mensajes de NewClipPage y las etiquetas de
  * ClipCard — yt-dlp en sí soporta muchas más plataformas (ver supportedsites.md en la raíz del
  * repo), pero acá nos limitamos a las 10 más populares para no abrumar la UI. Para sumar una
  * plataforma nueva: un valor más en ClipPlatform (acá y en el enum de ClipPlatform.java, con su
