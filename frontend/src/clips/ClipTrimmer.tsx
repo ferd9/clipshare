@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useMediaTrimmer } from './useMediaTrimmer';
 import { useWaveform } from './useWaveform';
-import type { SurpriseHistoryEntry } from './types';
 
 const TAP_THRESHOLD_PX = 4;
 // "Sorprendeme" (ver handleSurpriseMe): largo mínimo del fragmento al azar — pedido explícito,
@@ -45,12 +44,10 @@ interface ClipTrimmerProps {
    * azar al video, con el rango elegido — ClipEditPage lo usa para (a) pedirle a AudioTrimmer
    * que también reacomode el inicio del audio importado al azar (su duración ya queda
    * sincronizada con la del video por targetLengthMs, así que acá solo hace falta mover la
-   * posición) y (b) guardar el resultado en el historial de sorteos. */
+   * posición) y (b) guardar el resultado en el historial de sorteos, que se muestra como una
+   * columna lateral fuera de este componente (ver ClipEditPage.editor-surprise-sidebar) para no
+   * competir por espacio con el propio recorte. */
   onSurpriseMe?: (range: { startMs: number; endMs: number }) => void;
-  /** Historial de sorteos anteriores de "Sorprendeme" (ver ClipEditPage) — se muestra como una
-   * lista de chips debajo del botón para poder volver a uno que gustó más que el actual. */
-  surpriseHistory?: SurpriseHistoryEntry[];
-  onSelectSurprise?: (entry: SurpriseHistoryEntry) => void;
   /** Reaplica un rango EXACTO (de un sorteo anterior elegido del historial) sin generar uno
    * nuevo al azar — a diferencia de onSurpriseMe/handleSurpriseMe, que sí sortea. */
   restoreRange?: { startMs: number; endMs: number } | null;
@@ -87,8 +84,6 @@ export function ClipTrimmer({
   restartSignal,
   onPositionChange,
   onSurpriseMe,
-  surpriseHistory,
-  onSelectSurprise,
   restoreRange,
   restoreSignal,
 }: ClipTrimmerProps) {
@@ -413,24 +408,6 @@ export function ClipTrimmer({
           🎲 Sorprendeme
         </button>
       </div>
-
-      {/* Historial de sorteos de "Sorprendeme" — permite volver a un fragmento anterior sin
-       * tener que confiar en que el próximo tiro de dados sea igual de bueno. */}
-      {surpriseHistory && surpriseHistory.length > 0 && (
-        <div className="clip-trimmer-surprise-history">
-          {surpriseHistory.map((entry, index) => (
-            <button
-              key={entry.id}
-              type="button"
-              className="clip-trimmer-surprise-history-item"
-              onClick={() => onSelectSurprise?.(entry)}
-              title={`Volver a este fragmento: ${formatSeconds(entry.videoStartMs)} – ${formatSeconds(entry.videoEndMs)}`}
-            >
-              #{index + 1} · {formatSeconds(entry.videoStartMs)}–{formatSeconds(entry.videoEndMs)}
-            </button>
-          ))}
-        </div>
-      )}
 
       {selectionOutsideView && (
         <p className="clip-trimmer-hint">La selección quedó fuera de la vista — arrastrá el recuadro de abajo hasta ahí.</p>

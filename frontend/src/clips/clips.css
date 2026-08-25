@@ -357,9 +357,21 @@
   opacity: 0.75;
 }
 
+/* Fila que centra .editor-page y, si hay historial de "Sorprendeme", agrega
+ * .editor-surprise-sidebar al costado — separado de .editor-page (en vez de meterlo adentro)
+ * para que el historial nunca empuje ni apriete el recorte, solo aparece al costado cuando hay
+ * lugar (ver el max-width más abajo, que lo baja debajo en pantallas angostas). */
+.editor-page-layout {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 1.5rem;
+  padding: 2rem 0;
+}
+
 .editor-page {
   max-width: 28rem;
-  margin: 2rem auto;
+  width: 100%;
   padding: 0 1.5rem;
   text-align: left;
   display: flex;
@@ -368,6 +380,74 @@
    * .editor-controls cuando hay una elegida) tiene que quedar pegada justo debajo de la
    * onda del audio original, que es lo último que muestra ClipTrimmer arriba. */
   gap: 0.3rem;
+}
+
+.editor-surprise-sidebar {
+  width: 14rem;
+  flex-shrink: 0;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+
+.editor-surprise-sidebar-title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.editor-surprise-sidebar-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 22rem;
+  overflow-y: auto;
+}
+
+.editor-surprise-sidebar-item {
+  width: 100%;
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.editor-surprise-sidebar-item:hover {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.editor-surprise-sidebar-audio-note {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.7rem;
+  opacity: 0.65;
+}
+
+/* Sin lugar para una columna al costado del editor (28rem) por debajo de este ancho — el
+ * historial pasa a ir debajo, como su propio bloque en vez de una fila de chips apretada
+ * contra el botón (que es justo lo que se quería evitar). */
+@media (max-width: 900px) {
+  .editor-page-layout {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .editor-surprise-sidebar {
+    width: 100%;
+    max-width: 28rem;
+  }
 }
 
 .editor-back {
@@ -516,31 +596,6 @@
 .clip-trimmer-surprise-button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
-}
-
-.clip-trimmer-surprise-history {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.4rem;
-  margin-top: -0.25rem;
-}
-
-.clip-trimmer-surprise-history-item {
-  padding: 0.2rem 0.55rem;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: inherit;
-  font-size: 0.72rem;
-  opacity: 0.75;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.clip-trimmer-surprise-history-item:hover {
-  opacity: 1;
-  border-color: var(--accent);
 }
 
 /* Compartido entre ClipTrimmer (video) y AudioTrimmer (audio de reemplazo) — mismo control de

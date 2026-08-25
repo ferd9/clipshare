@@ -10,6 +10,10 @@ import './clips.css';
 const MAX_CLIP_DURATION_MS = 40_000;
 const POLL_INTERVAL_MS = 1500;
 
+function formatSeconds(ms: number): string {
+  return (ms / 1000).toFixed(1) + 's';
+}
+
 /**
  * Reemplaza al viejo ClipEditor.tsx (grabación de pantalla, retirado por calidad — ver
  * docs/SPEC.md). Común a OWN_UPLOAD y EXTERNAL_CAPTURE: ambos aterrizan acá después de crear
@@ -235,97 +239,125 @@ export function ClipEditPage() {
   }
 
   return (
-    <div className="editor-page">
-      {videoError && (
-        <p className="clips-error" role="alert">
-          {videoError}
-        </p>
-      )}
-
-      {videoUrl && (
-        <ClipTrimmer
-          videoUrl={videoUrl}
-          maxDurationMs={MAX_CLIP_DURATION_MS}
-          onChange={(start, end) => {
-            setTrimStartMs(start);
-            setTrimEndMs(end);
-          }}
-          showAddAudioButton={!replacementAudio}
-          onAddAudioClick={() => setAudioModalOpen(true)}
-          sourceTitle={clip.sourceTitle}
-          sourceUrl={clip.sourceUrl}
-          onVolumeChange={setOriginalAudioVolume}
-          restartSignal={videoRestartSignal}
-          onPositionChange={() => setAudioRestartSignal((n) => n + 1)}
-          onSurpriseMe={handleSurpriseMe}
-          surpriseHistory={surpriseHistory}
-          onSelectSurprise={handleSelectSurprise}
-          restoreRange={restoreVideoRange}
-          restoreSignal={restoreVideoSignal}
-        />
-      )}
-
-      <div className="editor-controls">
-        {/* El "+" que abre este picker vive sobre la onda del audio original, dentro de
-         * ClipTrimmer (arriba) — acá solo se maneja el modal y, una vez elegida una pista, su
-         * propia UI (reproductor/recorte/mezclar). */}
-        <AudioPicker
-          selected={replacementAudio}
-          mixWithOriginal={!muteOriginalAudio}
-          onMixWithOriginalChange={(mix) => setMuteOriginalAudio(!mix)}
-          modalOpen={audioModalOpen}
-          onCloseModal={() => setAudioModalOpen(false)}
-          onSelect={(track) => {
-            setReplacementAudio(track);
-            setReplacementAudioStartMs(0);
-            setReplacementAudioEndMs(track ? Math.min(track.durationMs, MAX_CLIP_DURATION_MS) : 0);
-          }}
-          onRangeChange={(start, end) => {
-            setReplacementAudioStartMs(start);
-            setReplacementAudioEndMs(end);
-          }}
-          onVolumeChange={setReplacementAudioVolume}
-          targetLengthMs={trimEndMs - trimStartMs}
-          onPositionChange={() => setVideoRestartSignal((n) => n + 1)}
-          restartSignal={audioRestartSignal}
-          randomizeSignal={audioRandomizeSignal}
-          onRandomize={handleAudioRandomize}
-          restoreStartMs={restoreAudioStartMs}
-          restoreSignal={restoreAudioSignal}
-        />
-
-        {!replacementAudio && (
-          <label className="editor-mute-toggle">
-            <input
-              type="checkbox"
-              checked={muteOriginalAudio}
-              onChange={(event) => setMuteOriginalAudio(event.target.checked)}
-            />
-            Silenciar el audio original
-          </label>
-        )}
-
-        <label className="editor-title-label">
-          Título (opcional)
-          <input
-            type="text"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="Sin título"
-            maxLength={150}
-          />
-        </label>
-
-        {submitError && (
+    <div className="editor-page-layout">
+      <div className="editor-page">
+        {videoError && (
           <p className="clips-error" role="alert">
-            {submitError}
+            {videoError}
           </p>
         )}
 
-        <button type="button" onClick={() => void handlePublish()} disabled={submitting || !videoUrl}>
-          {submitting ? 'Publicando…' : 'Publicar clip'}
-        </button>
+        {videoUrl && (
+          <ClipTrimmer
+            videoUrl={videoUrl}
+            maxDurationMs={MAX_CLIP_DURATION_MS}
+            onChange={(start, end) => {
+              setTrimStartMs(start);
+              setTrimEndMs(end);
+            }}
+            showAddAudioButton={!replacementAudio}
+            onAddAudioClick={() => setAudioModalOpen(true)}
+            sourceTitle={clip.sourceTitle}
+            sourceUrl={clip.sourceUrl}
+            onVolumeChange={setOriginalAudioVolume}
+            restartSignal={videoRestartSignal}
+            onPositionChange={() => setAudioRestartSignal((n) => n + 1)}
+            onSurpriseMe={handleSurpriseMe}
+            restoreRange={restoreVideoRange}
+            restoreSignal={restoreVideoSignal}
+          />
+        )}
+
+        <div className="editor-controls">
+          {/* El "+" que abre este picker vive sobre la onda del audio original, dentro de
+           * ClipTrimmer (arriba) — acá solo se maneja el modal y, una vez elegida una pista, su
+           * propia UI (reproductor/recorte/mezclar). */}
+          <AudioPicker
+            selected={replacementAudio}
+            mixWithOriginal={!muteOriginalAudio}
+            onMixWithOriginalChange={(mix) => setMuteOriginalAudio(!mix)}
+            modalOpen={audioModalOpen}
+            onCloseModal={() => setAudioModalOpen(false)}
+            onSelect={(track) => {
+              setReplacementAudio(track);
+              setReplacementAudioStartMs(0);
+              setReplacementAudioEndMs(track ? Math.min(track.durationMs, MAX_CLIP_DURATION_MS) : 0);
+            }}
+            onRangeChange={(start, end) => {
+              setReplacementAudioStartMs(start);
+              setReplacementAudioEndMs(end);
+            }}
+            onVolumeChange={setReplacementAudioVolume}
+            targetLengthMs={trimEndMs - trimStartMs}
+            onPositionChange={() => setVideoRestartSignal((n) => n + 1)}
+            restartSignal={audioRestartSignal}
+            randomizeSignal={audioRandomizeSignal}
+            onRandomize={handleAudioRandomize}
+            restoreStartMs={restoreAudioStartMs}
+            restoreSignal={restoreAudioSignal}
+          />
+
+          {!replacementAudio && (
+            <label className="editor-mute-toggle">
+              <input
+                type="checkbox"
+                checked={muteOriginalAudio}
+                onChange={(event) => setMuteOriginalAudio(event.target.checked)}
+              />
+              Silenciar el audio original
+            </label>
+          )}
+
+          <label className="editor-title-label">
+            Título (opcional)
+            <input
+              type="text"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="Sin título"
+              maxLength={150}
+            />
+          </label>
+
+          {submitError && (
+            <p className="clips-error" role="alert">
+              {submitError}
+            </p>
+          )}
+
+          <button type="button" onClick={() => void handlePublish()} disabled={submitting || !videoUrl}>
+            {submitting ? 'Publicando…' : 'Publicar clip'}
+          </button>
+        </div>
       </div>
+
+      {/* Columna lateral aparte del editor (ver .editor-page-layout en clips.css) — así el
+       * historial de "Sorprendeme" nunca compite por espacio con el recorte ni con los
+       * controles, aparece al costado cuando hay lugar y debajo (como su propio bloque) en
+       * pantallas angostas. */}
+      {surpriseHistory.length > 0 && (
+        <aside className="editor-surprise-sidebar">
+          <h3 className="editor-surprise-sidebar-title">🎲 Historial de sorteos</h3>
+          <ul className="editor-surprise-sidebar-list">
+            {surpriseHistory.map((entry, index) => (
+              <li key={entry.id}>
+                <button
+                  type="button"
+                  className="editor-surprise-sidebar-item"
+                  onClick={() => handleSelectSurprise(entry)}
+                >
+                  #{index + 1} · {formatSeconds(entry.videoStartMs)}–{formatSeconds(entry.videoEndMs)}
+                  {entry.audioStartMs !== undefined && (
+                    <span className="editor-surprise-sidebar-audio-note">
+                      audio desde {formatSeconds(entry.audioStartMs)}
+                    </span>
+                  )}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </aside>
+      )}
     </div>
   );
 }
