@@ -43,6 +43,10 @@ export function ClipEditPage() {
   // ClipTrimmer lo escucha para reiniciar la vista previa del video a su propio trimStart (ver
   // AudioTrimmer.onPositionChange / ClipTrimmer.restartSignal).
   const [videoRestartSignal, setVideoRestartSignal] = useState(0);
+  // Dirección inversa de la de arriba: se incrementa cada vez que el usuario cambia la
+  // posición o la longitud del fragmento de VIDEO — AudioTrimmer lo escucha para reiniciar su
+  // propia reproducción (ver ClipTrimmer.onPositionChange / AudioTrimmer.restartSignal).
+  const [audioRestartSignal, setAudioRestartSignal] = useState(0);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -202,6 +206,7 @@ export function ClipEditPage() {
           sourceUrl={clip.sourceUrl}
           onVolumeChange={setOriginalAudioVolume}
           restartSignal={videoRestartSignal}
+          onPositionChange={() => setAudioRestartSignal((n) => n + 1)}
         />
       )}
 
@@ -227,6 +232,7 @@ export function ClipEditPage() {
           onVolumeChange={setReplacementAudioVolume}
           targetLengthMs={trimEndMs - trimStartMs}
           onPositionChange={() => setVideoRestartSignal((n) => n + 1)}
+          restartSignal={audioRestartSignal}
         />
 
         {!replacementAudio && (

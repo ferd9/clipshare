@@ -25,6 +25,7 @@ interface AudioPickerProps {
   /** Reenviados tal cual a AudioTrimmer — ver sus props homónimas. */
   targetLengthMs?: number;
   onPositionChange?: () => void;
+  restartSignal?: number;
 }
 
 /**
@@ -55,6 +56,7 @@ export function AudioPicker({
   onVolumeChange,
   targetLengthMs,
   onPositionChange,
+  restartSignal,
 }: AudioPickerProps) {
   const [linkUrl, setLinkUrl] = useState('');
   const [busy, setBusy] = useState(false);
@@ -121,6 +123,7 @@ export function AudioPicker({
           onVolumeChange={onVolumeChange}
           targetLengthMs={targetLengthMs}
           onPositionChange={onPositionChange}
+          restartSignal={restartSignal}
         />
 
         <label className="editor-radio">

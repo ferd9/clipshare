@@ -32,6 +32,11 @@ interface ClipTrimmerProps {
    * (ver AudioTrimmer.onPositionChange) — reinicia la vista previa del video a su propio
    * trimStart, para que al escuchar el resultado video y audio arranquen sincronizados. */
   restartSignal?: number;
+  /** Se dispara cada vez que el usuario termina de cambiar la POSICIÓN o la LONGITUD del
+   * fragmento de video (arrastrar la selección entera, un borde, o elegir una nueva desde
+   * cero) — ClipEditPage lo usa para reiniciar la reproducción del audio importado (si hay
+   * uno), dirección inversa de restartSignal de arriba. */
+  onPositionChange?: () => void;
 }
 
 /**
@@ -62,6 +67,7 @@ export function ClipTrimmer({
   sourceUrl,
   onVolumeChange,
   restartSignal,
+  onPositionChange,
 }: ClipTrimmerProps) {
   const trimmer = useMediaTrimmer(videoUrl, maxDurationMs);
   // Pista de audio ORIGINAL del clip, como referencia visual (misma forma de onda que se usa
@@ -226,12 +232,18 @@ export function ClipTrimmer({
   }
 
   function endDrag() {
+    const hadDrag = dragging !== null;
     // Un tap real (sin arrastre perceptible) sobre el fondo centra una ventana del largo
     // máximo ahí, en vez de dejar la selección de 1s mínima que dejaría un drag de 0px — sería
     // muy fácil terminar con un recorte casi vacío por accidente si no.
     if (dragging === 'select' && !selectMovedRef.current && selectAnchorRef.current !== null) {
       trimmer.setWindowStartMs(selectAnchorRef.current - maxDurationMs / 2);
     }
+    // Cualquier gesto que termine acá cambió la posición y/o la longitud del fragmento
+    // (mover la ventana entera, ajustar un borde, o elegir una selección nueva de punta a
+    // punta) — el audio importado, si hay uno, tiene que reiniciar su reproducción para no
+    // quedar desfasado (ver AudioTrimmer.restartSignal).
+    if (hadDrag) onPositionChange?.();
     selectAnchorRef.current = null;
     selectStartClientRef.current = null;
     setDragging(null);

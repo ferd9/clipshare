@@ -37,6 +37,10 @@ interface AudioTrimmerProps {
    * usa para reiniciar la vista previa del video, así ambos arrancan sincronizados al escuchar
    * el resultado. */
   onPositionChange?: () => void;
+  /** Se incrementa cada vez que el usuario termina de cambiar la posición o la longitud del
+   * fragmento de VIDEO (ver ClipTrimmer.onPositionChange) — reinicia la reproducción de este
+   * audio a su propio trimStart, dirección inversa de onPositionChange de arriba. */
+  restartSignal?: number;
 }
 
 /**
@@ -61,6 +65,7 @@ export function AudioTrimmer({
   onVolumeChange,
   targetLengthMs,
   onPositionChange,
+  restartSignal,
 }: AudioTrimmerProps) {
   const trimmer = useAudioTrimmer(durationMs, maxDurationMs);
   const peaks = useWaveform(audioUrl);
@@ -119,6 +124,16 @@ export function AudioTrimmer({
   useEffect(() => {
     if (previewRef.current) previewRef.current.volume = volume;
   }, [volume]);
+
+  // Reinicia la reproducción a su propio trimStart cada vez que restartSignal cambia (el
+  // usuario cambió la posición o la longitud del fragmento de VIDEO, ver ClipTrimmer) — para
+  // que al escuchar el resultado, video y audio arranquen sincronizados en vez de quedar
+  // desfasados a mitad del loop de cada uno.
+  useEffect(() => {
+    if (restartSignal === undefined || !previewRef.current) return;
+    previewRef.current.currentTime = trimmer.trimStartMs / 1000;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restartSignal]);
 
   // Se avisa al padre igual que con el rango de recorte (arriba) — lo necesita para mandarlo
   // en POST /finalize cuando corresponda mezclar audio original + reemplazo.
