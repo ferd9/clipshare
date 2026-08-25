@@ -78,6 +78,18 @@ public class AuthService {
         issueEmailVerificationToken(user);
     }
 
+    /** Para una cuenta que ya existe pero todavía no verificó el email (docs/SPEC.md sección
+     * 12) — el registro original ya le mandó un token, pero puede vencer, perderse, o (caso
+     * real que motivó esto) que el usuario haya creado contenido con esa cuenta y no pueda
+     * simplemente registrarse de nuevo con el mismo email para conseguir un token nuevo. */
+    @Transactional
+    public void resendVerificationEmail(User user) {
+        if (user.isEmailVerified()) {
+            throw ApiException.badRequest("ALREADY_VERIFIED", "Esta cuenta ya está verificada");
+        }
+        issueEmailVerificationToken(user);
+    }
+
     private void issueEmailVerificationToken(User user) {
         String opaqueToken = tokenHasher.generateOpaqueToken();
         EmailVerificationToken token = new EmailVerificationToken(
