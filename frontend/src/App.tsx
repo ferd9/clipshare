@@ -4,6 +4,8 @@ import { ProtectedRoute } from './auth/ProtectedRoute';
 import { LoginPage } from './auth/LoginPage';
 import { RegisterPage } from './auth/RegisterPage';
 import { VerifyEmailPage } from './auth/VerifyEmailPage';
+import { ForgotPasswordPage } from './auth/ForgotPasswordPage';
+import { ResetPasswordPage } from './auth/ResetPasswordPage';
 import { AppShell } from './layout/AppShell';
 import { ClipFeed } from './clips/ClipFeed';
 import { UploadOwnClip } from './clips/UploadOwnClip';
@@ -22,6 +24,8 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route element={<AppShell />}>
             <Route path="/" element={<ClipFeed />} />
             <Route path="/legal/dmca" element={<DmcaPage />} />
