@@ -910,6 +910,18 @@
   min-width: 12rem;
 }
 
+/* Borde e interior con el color de acento (no el borde gris parejo de cualquier input) para
+ * que se note a simple vista que ahí va el link a importar, sin tener que leer el placeholder. */
+.audio-picker-link-input {
+  border: 2px solid var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.audio-picker-link-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
 .audio-picker-form button {
   padding: 0.5rem 0.85rem;
   border-radius: 0.4rem;

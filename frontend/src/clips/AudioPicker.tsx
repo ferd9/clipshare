@@ -185,6 +185,7 @@ export function AudioPicker({
         <form className="audio-picker-form" onSubmit={(e) => void handleLinkSubmit(e)}>
           <input
             type="url"
+            className="audio-picker-link-input"
             value={linkUrl}
             onChange={(event) => setLinkUrl(event.target.value)}
             placeholder="Pegá un link para importar — https://www.youtube.com/watch?v=..."
@@ -192,7 +193,7 @@ export function AudioPicker({
             disabled={busy}
           />
           <button type="submit" disabled={busy || !linkUrl.trim()}>
-            {busy ? 'Importando…' : 'Importar desde un link'}
+            {busy ? 'Importando…' : 'Importar'}
           </button>
         </form>
 
