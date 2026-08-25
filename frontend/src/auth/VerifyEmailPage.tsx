@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { extractErrorMessage } from './AuthContext';
@@ -18,6 +18,20 @@ export function VerifyEmailPage() {
   const token = searchParams.get('token');
   const [status, setStatus] = useState<Status>('verifying');
   const [error, setError] = useState<string | null>(null);
+  // El token se puede usar UNA sola vez (ver AuthService.verifyEmail) — sin este guard,
+  // React.StrictMode (activo en dev, ver main.tsx) dispara el efecto dos veces al montar,
+  // mandando el POST dos veces: la primera confirma la cuenta bien, la segunda encuentra el
+  // token ya usado. Un ref (no un state) porque tiene que sobrevivir exactamente a ese doble
+  // montaje-desmontaje-montaje, no solo a re-renders.
+  //
+  // A propósito SIN el patrón "cancelled" (banderita que la limpieza del efecto pone en true)
+  // que se usa en el resto del código para descartar respuestas tardías: acá chocaba con este
+  // guard — la limpieza del PRIMER montaje (el que de verdad manda el pedido) corre en el
+  // segundo pase de StrictMode ANTES de que la respuesta vuelva, dejando "cancelled=true" para
+  // siempre y el resultado exitoso nunca se aplicaba (pantalla colgada en "Verificando…").
+  // Como requestedRef ya garantiza un solo pedido en toda la vida del componente, no hace
+  // falta ese descarte acá.
+  const requestedRef = useRef(false);
 
   useEffect(() => {
     if (!token) {
@@ -25,21 +39,16 @@ export function VerifyEmailPage() {
       setError('Falta el token de verificación en el link.');
       return;
     }
-    let cancelled = false;
+    if (requestedRef.current) return;
+    requestedRef.current = true;
+
     apiClient
       .post('/api/auth/verify-email', { token })
-      .then(() => {
-        if (!cancelled) setStatus('success');
-      })
+      .then(() => setStatus('success'))
       .catch((err) => {
-        if (!cancelled) {
-          setStatus('error');
-          setError(extractErrorMessage(err, 'No se pudo verificar la cuenta'));
-        }
+        setStatus('error');
+        setError(extractErrorMessage(err, 'No se pudo verificar la cuenta'));
       });
-    return () => {
-      cancelled = true;
-    };
   }, [token]);
 
   return (
