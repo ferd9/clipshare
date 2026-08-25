@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { extractErrorMessage } from '../auth/AuthContext';
 import { AudioPicker } from './AudioPicker';
+import { ChangeVideoModal } from './ChangeVideoModal';
 import { ClipTrimmer } from './ClipTrimmer';
 import { finalizeClip, getClip, getEditableBlobUrl } from './clipsApi';
 import type { AudioTrack, ClipDetail, SurpriseHistoryEntry } from './types';
@@ -39,6 +40,7 @@ export function ClipEditPage() {
   const [replacementAudioStartMs, setReplacementAudioStartMs] = useState(0);
   const [replacementAudioEndMs, setReplacementAudioEndMs] = useState(0);
   const [audioModalOpen, setAudioModalOpen] = useState(false);
+  const [changeVideoModalOpen, setChangeVideoModalOpen] = useState(false);
   // Nivel elegido en cada control deslizante de volumen (ClipTrimmer/AudioTrimmer) — solo
   // importa de verdad al MEZCLAR audio original + reemplazo, ver FfmpegProcessor.finalizeClip.
   const [originalAudioVolume, setOriginalAudioVolume] = useState(1);
@@ -130,6 +132,23 @@ export function ClipEditPage() {
       if (videoUrlRef.current) URL.revokeObjectURL(videoUrlRef.current);
     };
   }, []);
+
+  // Avisa antes de cerrar la pestaña, recargar, o escribir otra URL mientras hay un clip
+  // editable sin publicar todavía — perder ese trabajo implica volver a subir/importar y
+  // esperar de nuevo todo el procesamiento. Una vez publicado (done) ya no hay nada que
+  // perder, se saca el aviso. OJO: esto NO cubre navegar a otra pantalla DENTRO de la app (ej.
+  // tocar "Crear" en el Nav) — react-router sin un "data router" (ver App.tsx, usa
+  // BrowserRouter a secas) no tiene una forma confiable de bloquear esa navegación interna sin
+  // un cambio de infraestructura más grande.
+  useEffect(() => {
+    if (!clip || clip.processingStatus !== 'AWAITING_EDIT' || done) return;
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [clip, done]);
 
   // El video ya sorteó y aplicó su propio rango (ver ClipTrimmer.handleSurpriseMe) — acá solo
   // se registra en el historial y, si hay audio importado, se le pide a AudioTrimmer que
@@ -248,6 +267,19 @@ export function ClipEditPage() {
         )}
 
         {videoUrl && (
+          <div className="editor-page-header">
+            <button
+              type="button"
+              className="editor-change-video-button"
+              onClick={() => setChangeVideoModalOpen(true)}
+              disabled={submitting}
+            >
+              🔄 Cambiar video
+            </button>
+          </div>
+        )}
+
+        {videoUrl && (
           <ClipTrimmer
             videoUrl={videoUrl}
             maxDurationMs={MAX_CLIP_DURATION_MS}
@@ -282,6 +314,10 @@ export function ClipEditPage() {
               setReplacementAudio(track);
               setReplacementAudioStartMs(0);
               setReplacementAudioEndMs(track ? Math.min(track.durationMs, MAX_CLIP_DURATION_MS) : 0);
+              // Cambiar (o quitar) el audio invalida los sorteos guardados — algunos quedarían
+              // apuntando a una posición de audio que ya no corresponde a la pista actual.
+              setSurpriseHistory([]);
+              pendingSurpriseIdRef.current = null;
             }}
             onRangeChange={(start, end) => {
               setReplacementAudioStartMs(start);
@@ -358,6 +394,19 @@ export function ClipEditPage() {
           </ul>
         </aside>
       )}
+
+      <ChangeVideoModal open={changeVideoModalOpen} onClose={() => setChangeVideoModalOpen(false)} />
     </div>
   );
+}
+
+/** Fuerza un remount completo de ClipEditPage cuando cambia el :id de la URL (ver "Cambiar
+ * video" en ChangeVideoModal, que navega de /clips/A/edit a /clips/B/edit) — sin esto, React
+ * Router reusa la misma instancia del componente al matchear la misma Route, así que ningún
+ * estado local (recorte, audio, historial de "Sorprendeme") se reiniciaría solo por cambiar el
+ * id. Con key={id}, React trata cada id como un árbol distinto y lo desmonta/remonta entero,
+ * mismo efecto que si fuera una pantalla nueva de punta a punta. */
+export function ClipEditPageRoute() {
+  const { id } = useParams<{ id: string }>();
+  return <ClipEditPage key={id} />;
 }

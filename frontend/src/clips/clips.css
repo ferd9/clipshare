@@ -382,6 +382,30 @@
   gap: 0.3rem;
 }
 
+.editor-page-header {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.editor-change-video-button {
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.editor-change-video-button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.editor-change-video-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .editor-surprise-sidebar {
   width: 14rem;
   flex-shrink: 0;

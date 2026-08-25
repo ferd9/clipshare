@@ -9,7 +9,7 @@ import { ResetPasswordPage } from './auth/ResetPasswordPage';
 import { AppShell } from './layout/AppShell';
 import { ClipFeed } from './clips/ClipFeed';
 import { NewClipPage } from './clips/NewClipPage';
-import { ClipEditPage } from './clips/ClipEditPage';
+import { ClipEditPageRoute } from './clips/ClipEditPage';
 import { DmcaPage } from './legal/DmcaPage';
 import { ReportForm } from './legal/ReportForm';
 import { AdminRoute } from './admin/AdminRoute';
@@ -34,7 +34,7 @@ function App() {
               {/* /import queda como alias por si hay algún link viejo guardado — la pantalla
                * ahora es una sola (ver NewClipPage). */}
               <Route path="/import" element={<Navigate to="/upload" replace />} />
-              <Route path="/clips/:id/edit" element={<ClipEditPage />} />
+              <Route path="/clips/:id/edit" element={<ClipEditPageRoute />} />
             </Route>
             <Route element={<AdminRoute />}>
               <Route path="/admin/reports" element={<AdminReportsPage />} />
