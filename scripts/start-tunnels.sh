@@ -44,10 +44,14 @@ fi
 echo "Backend:  $BACKEND_URL"
 echo "Frontend: $FRONTEND_URL"
 
-cat > .env << ENV_EOF
-VITE_API_BASE_URL=$BACKEND_URL
-APP_CORS_ALLOWED_ORIGINS=$FRONTEND_URL
-ENV_EOF
+# Actualiza SOLO estas dos claves dentro de .env, conservando cualquier otra variable que ya
+# hubiera ahí (ej. RESEND_API_KEY) — antes este script pisaba el archivo entero con "cat >",
+# así que cualquier config agregada a mano se perdía en el siguiente reinicio de la VM.
+touch .env
+grep -v -E '^(VITE_API_BASE_URL|APP_CORS_ALLOWED_ORIGINS)=' .env > .env.tmp || true
+mv .env.tmp .env
+echo "VITE_API_BASE_URL=$BACKEND_URL" >> .env
+echo "APP_CORS_ALLOWED_ORIGINS=$FRONTEND_URL" >> .env
 
 docker compose up -d --build
 echo "Listo — la app quedó disponible en $FRONTEND_URL"
