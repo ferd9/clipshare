@@ -44,14 +44,18 @@ fi
 echo "Backend:  $BACKEND_URL"
 echo "Frontend: $FRONTEND_URL"
 
-# Actualiza SOLO estas dos claves dentro de .env, conservando cualquier otra variable que ya
+# Actualiza SOLO estas claves dentro de .env, conservando cualquier otra variable que ya
 # hubiera ahí (ej. RESEND_API_KEY) — antes este script pisaba el archivo entero con "cat >",
 # así que cualquier config agregada a mano se perdía en el siguiente reinicio de la VM.
+# APP_FRONTEND_URL == FRONTEND_URL a propósito: es la misma URL pública, solo que
+# APP_CORS_ALLOWED_ORIGINS la usa el backend para la política de CORS y APP_FRONTEND_URL para
+# armar links dentro de emails (ver ResendEmailService) — mismo valor, dos usos distintos.
 touch .env
-grep -v -E '^(VITE_API_BASE_URL|APP_CORS_ALLOWED_ORIGINS)=' .env > .env.tmp || true
+grep -v -E '^(VITE_API_BASE_URL|APP_CORS_ALLOWED_ORIGINS|APP_FRONTEND_URL)=' .env > .env.tmp || true
 mv .env.tmp .env
 echo "VITE_API_BASE_URL=$BACKEND_URL" >> .env
 echo "APP_CORS_ALLOWED_ORIGINS=$FRONTEND_URL" >> .env
+echo "APP_FRONTEND_URL=$FRONTEND_URL" >> .env
 
 docker compose up -d --build
 echo "Listo — la app quedó disponible en $FRONTEND_URL"
