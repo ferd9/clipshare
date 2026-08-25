@@ -2,13 +2,18 @@ package com.clipshare.auth;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
 
-// TODO: reemplazar por un cliente real (Resend/Mailgun, ver docs/SPEC.md sección 16)
-// antes de producción. Mientras tanto, esto deja el flujo completo funcional en dev/local.
+// logging | resend — mismo patrón que MockCsamHashService/MockTurnstileClient. Sin esta
+// condición, este bean queda activo SIEMPRE (incompondicional) y choca con ResendEmailService
+// en cuanto app.email.provider=resend — exactamente el bug que tumbó el arranque en la nube
+// (Spring no puede elegir entre dos beans de EmailService), porque en local nunca se prueba
+// con ese valor puesto y el problema queda invisible hasta desplegar.
 @Service
+@ConditionalOnProperty(name = "app.email.provider", havingValue = "logging", matchIfMissing = true)
 public class LoggingEmailService implements EmailService {
 
     private static final Logger log = LoggerFactory.getLogger(LoggingEmailService.class);
