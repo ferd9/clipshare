@@ -34,9 +34,21 @@ server:
 
 # Config propia de la app (ver docs/SPEC.md secciones 6 y 13)
 app:
+  # URL pública del frontend — usada para armar links dentro de emails (ver
+  # ResendEmailService), no solo para CORS. Con túneles de Cloudflare (despliegue de prueba en
+  # la nube) esto cambia en cada reinicio de la VM, ver scripts/start-tunnels.sh, que la
+  # actualiza sola en el .env junto con APP_CORS_ALLOWED_ORIGINS.
+  frontend-url: ${APP_FRONTEND_URL:http://localhost:5173}
   cors:
     # Separado por comas si hace falta más de uno — ver SecurityConfig.corsConfigurationSource.
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  email:
+    # logging | resend — mismo patrón que app.moderation.csam-provider: logging solo deja el
+    # link en los logs (dev/local, ver LoggingEmailService); resend manda el email de verdad
+    # (ver ResendEmailService), requiere una API key real de resend.com.
+    provider: ${APP_EMAIL_PROVIDER:logging}
+    resend-api-key: ${RESEND_API_KEY:}
+    from: ${APP_EMAIL_FROM:onboarding@resend.dev}
   jwt:
     secret: ${JWT_SECRET:change-me-in-dev}
     access-token-ttl-minutes: 20   # corta duración a propósito, ver docs/SPEC.md sección 12

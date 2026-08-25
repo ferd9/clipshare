@@ -3,6 +3,7 @@ import { AuthProvider } from './auth/AuthContext';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 import { LoginPage } from './auth/LoginPage';
 import { RegisterPage } from './auth/RegisterPage';
+import { VerifyEmailPage } from './auth/VerifyEmailPage';
 import { AppShell } from './layout/AppShell';
 import { ClipFeed } from './clips/ClipFeed';
 import { UploadOwnClip } from './clips/UploadOwnClip';
@@ -20,6 +21,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route element={<AppShell />}>
             <Route path="/" element={<ClipFeed />} />
             <Route path="/legal/dmca" element={<DmcaPage />} />
