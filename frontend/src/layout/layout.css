@@ -66,9 +66,18 @@
   /* flex:1 + min-height:0 es el truco de siempre para "ocupar el resto de la columna flex y
    * permitir que un hijo scrollee puertas adentro en vez de estirar la página entera" — sin
    * el min-height:0, un hijo con overflow no se recorta al espacio disponible, sigue creciendo
-   * con su contenido como si esto fuera un bloque normal. */
+   * con su contenido como si esto fuera un bloque normal.
+   * El overflow-y:auto es la parte que faltaba: sin esto, una página con MÁS contenido que el
+   * espacio disponible (ej. el editor de recorte, con muchos controles apilados) no crecía —
+   * se quedaba recortada a este alto pero el contenido igual se dibujaba de largo, pasando
+   * por ENCIMA del Footer que viene después (el bug real: el botón "Publicar clip" quedaba
+   * tapado por la línea del footer, sin poder clickearse ahí). Con overflow-y:auto, ese
+   * contenido de más simplemente scrollea puertas adentro de esta caja en vez de desbordarse
+   * visualmente. Para el feed (ClipFeed, que ya maneja su propio scroll interno) no cambia
+   * nada: su alto siempre coincide exactamente con el de este contenedor. */
   flex: 1 1 auto;
   min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
 }

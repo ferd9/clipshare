@@ -3,6 +3,7 @@ import { extractErrorMessage } from '../auth/AuthContext';
 import { AudioTrimmer } from './AudioTrimmer';
 import { importAudioFromLink, mediaUrl, uploadAudioTrack } from './clipsApi';
 import type { AudioTrack } from './types';
+import './clips.css';
 
 const MAX_AUDIO_FRAGMENT_MS = 40_000;
 
@@ -26,18 +27,17 @@ interface AudioPickerProps {
   onPositionChange?: () => void;
 }
 
-type Mode = 'menu' | 'link';
-
 /**
  * Silenciar/reemplazar/mezclar el audio original al finalizar un clip. Mismo criterio de
  * riesgo ya aceptado para el video: el link también se descarga server-side vía yt-dlp. Corre
  * síncrono (POST /api/audio/*, sin cola) porque un archivo de audio de a lo sumo 10 minutos
  * procesa en segundos — ver AudioTrackService.
  *
- * El modal (disparado desde el "+" en ClipTrimmer) muestra el checkbox de mezclar/reemplazar
- * y las dos formas de conseguir el audio: "Importar" revela el input de URL ADENTRO del mismo
- * modal; "Subir" dispara el selector nativo de archivos directo (input file oculto), sin un
- * paso intermedio.
+ * El modal (disparado desde el "+" en ClipTrimmer) muestra el checkbox de mezclar/reemplazar y
+ * las dos formas de conseguir el audio, unificadas en una sola vista (mismo patrón que
+ * NewClipPage para crear un clip): una zona grande tipo "dropzone" para subir un archivo, y
+ * debajo el input para importar por link — sin un menú intermedio que obligue a elegir entre
+ * una modalidad u otra antes de ver las dos opciones.
  *
  * Una vez elegida la pista, si dura más que el fragmento máximo (40s, igual que el video) se
  * muestra un recorte (AudioTrimmer) para elegir qué parte usar — mismo "sonido" reusado en
@@ -56,17 +56,15 @@ export function AudioPicker({
   targetLengthMs,
   onPositionChange,
 }: AudioPickerProps) {
-  const [mode, setMode] = useState<Mode>('menu');
   const [linkUrl, setLinkUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Arranca siempre limpio: sin esto, reabrir el modal después de un intento fallido (o de
-  // haber entrado a "Importar" y cancelado) lo dejaría en el paso donde se quedó la vez anterior.
+  // Arranca siempre limpio: sin esto, reabrir el modal después de un intento fallido dejaría
+  // el link a medio escribir de la vez anterior.
   useEffect(() => {
     if (modalOpen) {
-      setMode('menu');
       setLinkUrl('');
       setError(null);
     }
@@ -158,38 +156,20 @@ export function AudioPicker({
           Mezclar con el audio original (si no, lo reemplaza)
         </label>
 
-        {mode === 'menu' && (
-          <div className="audio-picker-actions">
-            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={busy}>
-              Subir audio
-            </button>
-            <button type="button" onClick={() => setMode('link')} disabled={busy}>
-              Importar desde un link
-            </button>
-          </div>
-        )}
-
-        {mode === 'link' && (
-          <form className="audio-picker-form" onSubmit={(e) => void handleLinkSubmit(e)}>
-            <input
-              type="url"
-              value={linkUrl}
-              onChange={(event) => setLinkUrl(event.target.value)}
-              placeholder="https://www.youtube.com/watch?v=..."
-              required
-              disabled={busy}
-            />
-            <button type="submit" disabled={busy || !linkUrl.trim()}>
-              {busy ? 'Importando…' : 'Usar este audio'}
-            </button>
-            <button type="button" onClick={() => setMode('menu')} disabled={busy}>
-              Cancelar
-            </button>
-          </form>
-        )}
-
-        {/* Oculto a propósito: "Subir audio" lo dispara directo (sin un input visible de por
-         * medio), para que aparezca el selector nativo del sistema operativo enseguida. */}
+        <button
+          type="button"
+          className="new-clip-upload-zone"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={busy}
+        >
+          <span className="new-clip-upload-icon" aria-hidden="true">
+            📤
+          </span>
+          <span className="new-clip-upload-label">Subir un audio</span>
+          <span className="new-clip-upload-hint">Elegí un archivo desde tu dispositivo</span>
+        </button>
+        {/* Oculto a propósito: el botón de arriba lo dispara directo, sin un input visible de
+         * por medio, para que aparezca el selector nativo del sistema operativo enseguida. */}
         <input
           ref={fileInputRef}
           type="file"
@@ -198,7 +178,25 @@ export function AudioPicker({
           style={{ display: 'none' }}
         />
 
-        {busy && mode === 'menu' && <p className="clips-loading">Subiendo…</p>}
+        <div className="new-clip-divider">
+          <span>o</span>
+        </div>
+
+        <form className="audio-picker-form" onSubmit={(e) => void handleLinkSubmit(e)}>
+          <input
+            type="url"
+            value={linkUrl}
+            onChange={(event) => setLinkUrl(event.target.value)}
+            placeholder="Pegá un link para importar — https://www.youtube.com/watch?v=..."
+            required
+            disabled={busy}
+          />
+          <button type="submit" disabled={busy || !linkUrl.trim()}>
+            {busy ? 'Importando…' : 'Importar desde un link'}
+          </button>
+        </form>
+
+        {busy && <p className="clips-loading">Un momento…</p>}
         {error && (
           <p className="clips-error" role="alert">
             {error}
