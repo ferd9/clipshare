@@ -125,6 +125,40 @@
   z-index: 1;
 }
 
+/* Botones ⌃/⌄ del feed — fixed (no absolute) a propósito: tienen que quedarse fijos en
+ * pantalla sin importar el scroll interno de .clip-feed, igual que las flechas del teclado
+ * (ver ClipFeed.scrollToIndex). A la izquierda para no pisar los íconos de silenciar/
+ * comentar/reportar de cada clip, que ya ocupan la derecha (ver .clip-feed-actions). */
+.clip-feed-nav-buttons {
+  position: fixed;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  z-index: 1;
+}
+
+.clip-feed-nav-button {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.clip-feed-nav-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
 .clips-loading,
 .clips-error,
 .clips-empty {

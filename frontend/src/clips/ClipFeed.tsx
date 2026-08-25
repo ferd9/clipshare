@@ -33,6 +33,9 @@ export function ClipFeed() {
   // Ref (no state) para el guard de "ya hay un pedido de más clips en curso" — evita que el
   // efecto de abajo dispare pedidos duplicados mientras el primero todavía no resolvió.
   const loadingMoreRef = useRef(false);
+  // Contenedor con el scroll-snap (ver .clip-feed en clips.css) — necesario para poder
+  // desplazarlo a mano desde las flechas del teclado y los botones ⌃/⌄.
+  const feedRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,6 +81,39 @@ export function ClipFeed() {
     }
   }, [activeIndex, clips, page, totalPages, loadMore]);
 
+  // Todos los clips miden exactamente el alto del contenedor (ver .clip-feed-slide, height:
+  // 100%) — así que "ir al clip N" es simplemente desplazarse a N veces esa altura, sin
+  // necesitar una ref por cada clip.
+  const scrollToIndex = useCallback(
+    (index: number) => {
+      const container = feedRef.current;
+      if (!container || !clips) return;
+      const clamped = Math.max(0, Math.min(index, clips.length - 1));
+      container.scrollTo({ top: clamped * container.clientHeight, behavior: 'smooth' });
+    },
+    [clips],
+  );
+
+  // Flechas arriba/abajo para pasar de clip sin usar el mouse/touch — igual que el scroll,
+  // pero accesible desde el teclado. Se ignora mientras el foco está en un campo de texto
+  // (ej. escribiendo un comentario) para no robarle las flechas a esa interacción.
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return;
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        scrollToIndex(activeIndex + 1);
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        scrollToIndex(activeIndex - 1);
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeIndex, scrollToIndex]);
+
   if (error && clips === null) return <p className="clips-error">{error}</p>;
   if (clips === null) return <p className="clips-loading">Cargando…</p>;
 
@@ -91,17 +127,44 @@ export function ClipFeed() {
   }
 
   return (
-    <div className="clip-feed">
-      {clips.map((clip, index) => (
-        <ClipCard
-          key={clip.id}
-          clip={clip}
-          muted={muted}
-          onToggleMuted={() => setMuted((m) => !m)}
-          onActive={() => setActiveIndex(index)}
-        />
-      ))}
-      {error && <p className="clip-feed-error">{error}</p>}
-    </div>
+    <>
+      <div className="clip-feed" ref={feedRef}>
+        {clips.map((clip, index) => (
+          <ClipCard
+            key={clip.id}
+            clip={clip}
+            muted={muted}
+            onToggleMuted={() => setMuted((m) => !m)}
+            onActive={() => setActiveIndex(index)}
+          />
+        ))}
+        {error && <p className="clip-feed-error">{error}</p>}
+      </div>
+
+      {/* Mismo desplazamiento que las flechas del teclado, para quien prefiera clickear —
+       * fuera de .clip-feed a propósito (position: fixed, no se mueve con el scroll interno). */}
+      <div className="clip-feed-nav-buttons">
+        <button
+          type="button"
+          className="clip-feed-nav-button"
+          onClick={() => scrollToIndex(activeIndex - 1)}
+          disabled={activeIndex === 0}
+          aria-label="Clip anterior"
+          title="Clip anterior"
+        >
+          ▲
+        </button>
+        <button
+          type="button"
+          className="clip-feed-nav-button"
+          onClick={() => scrollToIndex(activeIndex + 1)}
+          disabled={activeIndex === clips.length - 1}
+          aria-label="Siguiente clip"
+          title="Siguiente clip"
+        >
+          ▼
+        </button>
+      </div>
+    </>
   );
 }

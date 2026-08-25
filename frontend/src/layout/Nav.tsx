@@ -41,7 +41,7 @@ export function Nav() {
         <nav className="app-nav-links">
           {status === 'authenticated' && user ? (
             <>
-              <Link to="/upload">Nuevo clip</Link>
+              <Link to="/upload">Crear</Link>
               {(user.role === 'ADMIN' || user.role === 'MODERATOR') && (
                 <Link to="/admin/reports">Admin</Link>
               )}
