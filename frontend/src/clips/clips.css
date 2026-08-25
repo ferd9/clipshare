@@ -518,6 +518,31 @@
   cursor: not-allowed;
 }
 
+.clip-trimmer-surprise-history {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: -0.25rem;
+}
+
+.clip-trimmer-surprise-history-item {
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  font-size: 0.72rem;
+  opacity: 0.75;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.clip-trimmer-surprise-history-item:hover {
+  opacity: 1;
+  border-color: var(--accent);
+}
+
 /* Compartido entre ClipTrimmer (video) y AudioTrimmer (audio de reemplazo) — mismo control de
  * volumen, mismo look en los dos. */
 .media-volume-row {

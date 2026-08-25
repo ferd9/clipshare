@@ -4,7 +4,7 @@ import { extractErrorMessage } from '../auth/AuthContext';
 import { AudioPicker } from './AudioPicker';
 import { ClipTrimmer } from './ClipTrimmer';
 import { finalizeClip, getClip, getEditableBlobUrl } from './clipsApi';
-import type { AudioTrack, ClipDetail } from './types';
+import type { AudioTrack, ClipDetail, SurpriseHistoryEntry } from './types';
 import './clips.css';
 
 const MAX_CLIP_DURATION_MS = 40_000;
@@ -51,6 +51,21 @@ export function ClipEditPage() {
   // escucha para reacomodar el inicio del audio importado a un punto al azar (ver
   // ClipTrimmer.onSurpriseMe / AudioTrimmer.randomizeSignal).
   const [audioRandomizeSignal, setAudioRandomizeSignal] = useState(0);
+  // Historial de sorteos de "Sorprendeme" (ver ClipTrimmer.surpriseHistory) — cada tiro agrega
+  // una entrada acá, para poder volver a uno anterior si gustó más que el actual. Cuando hay
+  // audio importado, el rango de video y el inicio de audio se sortean por separado (cada uno
+  // en su propio componente) pero para UN mismo click — pendingSurpriseIdRef guarda a qué
+  // entrada todavía le falta el dato de audio, que llega un instante después vía onRandomize.
+  const [surpriseHistory, setSurpriseHistory] = useState<SurpriseHistoryEntry[]>([]);
+  const pendingSurpriseIdRef = useRef<number | null>(null);
+  const nextSurpriseIdRef = useRef(1);
+  // "Restaurar": reaplica el rango exacto de una entrada del historial elegida por el usuario,
+  // sin sortear nada nuevo (ver ClipTrimmer.restoreRange/restoreSignal y
+  // AudioTrimmer.restoreStartMs/restoreSignal).
+  const [restoreVideoRange, setRestoreVideoRange] = useState<{ startMs: number; endMs: number } | null>(null);
+  const [restoreVideoSignal, setRestoreVideoSignal] = useState(0);
+  const [restoreAudioStartMs, setRestoreAudioStartMs] = useState<number | undefined>(undefined);
+  const [restoreAudioSignal, setRestoreAudioSignal] = useState(0);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -111,6 +126,37 @@ export function ClipEditPage() {
       if (videoUrlRef.current) URL.revokeObjectURL(videoUrlRef.current);
     };
   }, []);
+
+  // El video ya sorteó y aplicó su propio rango (ver ClipTrimmer.handleSurpriseMe) — acá solo
+  // se registra en el historial y, si hay audio importado, se le pide a AudioTrimmer que
+  // también sortee su posición (la entrada queda "pendiente" hasta que handleAudioRandomize
+  // complete el dato de audio un instante después).
+  function handleSurpriseMe(range: { startMs: number; endMs: number }) {
+    const id = nextSurpriseIdRef.current++;
+    pendingSurpriseIdRef.current = replacementAudio ? id : null;
+    setSurpriseHistory((history) => [...history, { id, videoStartMs: range.startMs, videoEndMs: range.endMs }]);
+    if (replacementAudio) setAudioRandomizeSignal((n) => n + 1);
+  }
+
+  // Completa, con la posición de audio recién sorteada, la entrada del historial que
+  // handleSurpriseMe dejó pendiente (ver pendingSurpriseIdRef arriba).
+  function handleAudioRandomize(startMs: number) {
+    const id = pendingSurpriseIdRef.current;
+    if (id === null) return;
+    pendingSurpriseIdRef.current = null;
+    setSurpriseHistory((history) => history.map((entry) => (entry.id === id ? { ...entry, audioStartMs: startMs } : entry)));
+  }
+
+  // El usuario eligió un sorteo anterior del historial — reaplica ese rango exacto (sin
+  // sortear nada nuevo) al video y, si esa entrada tenía audio, también a la posición del audio.
+  function handleSelectSurprise(entry: SurpriseHistoryEntry) {
+    setRestoreVideoRange({ startMs: entry.videoStartMs, endMs: entry.videoEndMs });
+    setRestoreVideoSignal((n) => n + 1);
+    if (entry.audioStartMs !== undefined) {
+      setRestoreAudioStartMs(entry.audioStartMs);
+      setRestoreAudioSignal((n) => n + 1);
+    }
+  }
 
   async function handlePublish() {
     if (!id) return;
@@ -211,7 +257,11 @@ export function ClipEditPage() {
           onVolumeChange={setOriginalAudioVolume}
           restartSignal={videoRestartSignal}
           onPositionChange={() => setAudioRestartSignal((n) => n + 1)}
-          onSurpriseMe={() => setAudioRandomizeSignal((n) => n + 1)}
+          onSurpriseMe={handleSurpriseMe}
+          surpriseHistory={surpriseHistory}
+          onSelectSurprise={handleSelectSurprise}
+          restoreRange={restoreVideoRange}
+          restoreSignal={restoreVideoSignal}
         />
       )}
 
@@ -239,6 +289,9 @@ export function ClipEditPage() {
           onPositionChange={() => setVideoRestartSignal((n) => n + 1)}
           restartSignal={audioRestartSignal}
           randomizeSignal={audioRandomizeSignal}
+          onRandomize={handleAudioRandomize}
+          restoreStartMs={restoreAudioStartMs}
+          restoreSignal={restoreAudioSignal}
         />
 
         {!replacementAudio && (

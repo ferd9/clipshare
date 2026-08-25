@@ -60,6 +60,17 @@ export interface AudioTrack {
   sourceUrl: string | null;
 }
 
+/** Un resultado de "Sorprendeme" (ver ClipTrimmer.handleSurpriseMe) — se guarda en
+ * ClipEditPage cada vez que el usuario tira los dados, para poder volver a elegir uno anterior
+ * si le gustó más que el actual. audioStartMs queda undefined si en ese momento no había un
+ * audio de reemplazo importado (o si el sorteo de audio todavía no terminó de resolverse). */
+export interface SurpriseHistoryEntry {
+  id: number;
+  videoStartMs: number;
+  videoEndMs: number;
+  audioStartMs?: number;
+}
+
 export interface PageResponse<T> {
   items: T[];
   page: number;

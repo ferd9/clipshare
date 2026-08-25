@@ -46,6 +46,14 @@ interface AudioTrimmerProps {
    * actual (ya sincronizada con la del video vía targetLengthMs, así que acá solo hace falta
    * mover la posición). */
   randomizeSignal?: number;
+  /** Avisa a ClipEditPage qué posición de inicio se sorteó recién (en respuesta a
+   * randomizeSignal) — se usa para completar la entrada del historial de "Sorprendeme" que ya
+   * se había creado del lado del video (ver ClipEditPage.pendingSurpriseIdRef). */
+  onRandomize?: (startMs: number) => void;
+  /** Reaplica una posición de inicio EXACTA (de un sorteo anterior elegido del historial) sin
+   * generar una nueva al azar — a diferencia de randomizeSignal, que sí sortea. */
+  restoreStartMs?: number;
+  restoreSignal?: number;
 }
 
 /**
@@ -72,6 +80,9 @@ export function AudioTrimmer({
   onPositionChange,
   restartSignal,
   randomizeSignal,
+  onRandomize,
+  restoreStartMs,
+  restoreSignal,
 }: AudioTrimmerProps) {
   const trimmer = useAudioTrimmer(durationMs, maxDurationMs);
   const peaks = useWaveform(audioUrl);
@@ -147,9 +158,19 @@ export function AudioTrimmer({
   useEffect(() => {
     if (randomizeSignal === undefined) return;
     const length = trimmer.trimEndMs - trimmer.trimStartMs;
-    trimmer.setWindowStartMs(Math.random() * Math.max(durationMs - length, 0));
+    const newStart = Math.random() * Math.max(durationMs - length, 0);
+    trimmer.setWindowStartMs(newStart);
+    onRandomize?.(newStart);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [randomizeSignal]);
+
+  // Reaplica una posición exacta elegida del historial de "Sorprendeme" (ver ClipEditPage) —
+  // a diferencia del efecto de arriba, acá NO se sortea nada nuevo.
+  useEffect(() => {
+    if (restoreSignal === undefined || restoreStartMs === undefined) return;
+    trimmer.setWindowStartMs(restoreStartMs);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restoreSignal]);
 
   // Se avisa al padre igual que con el rango de recorte (arriba) — lo necesita para mandarlo
   // en POST /finalize cuando corresponda mezclar audio original + reemplazo.
