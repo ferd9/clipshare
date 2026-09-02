@@ -1,0 +1,22 @@
+# TLS automático (Let's Encrypt) para el dominio real + reverse-proxy al backend, mismo origen
+# que el frontend (evita CORS entre dominios). Ver docker-compose.prod.yml / docs/DEPLOY.md.
+# {$DOMAIN} lee la variable de entorno DOMAIN pasada al contenedor caddy.
+{$DOMAIN} {
+	encode gzip
+
+	handle /api/* {
+		reverse_proxy backend:8080
+	}
+
+	handle /media/* {
+		reverse_proxy backend:8080
+	}
+
+	# SPA: cualquier ruta que no matcheó arriba y no es un archivo real cae en index.html
+	# (react-router maneja el resto client-side).
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

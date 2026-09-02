@@ -880,6 +880,9 @@ El agente debe entregar cada fase con tests mínimos (unitarios para servicios c
 
 ## 16. Notas de despliegue futuro (referencia, fuera de alcance de esta sesión)
 
+> **Ver `docs/DEPLOY.md` para la guía operativa real** (despliegue a Hetzner ya hecho siguiendo
+> esta sección). Lo que sigue queda como la propuesta original de referencia, sin editar.
+
 Presupuesto objetivo: **$100/mes**. Breakdown de referencia (ver conversación previa):
 
 - VPS Hetzner CX32 (4 vCPU/8GB): ~$17–18/mes — corre backend + worker + Postgres + Redis vía Docker Compose en producción.

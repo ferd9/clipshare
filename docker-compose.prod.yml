@@ -1,0 +1,94 @@
+# Compose de producción real (Hetzner) — ver docs/DEPLOY.md. A diferencia de docker-compose.yml
+# (dev): sin bind mounts, imágenes de producción (Dockerfile.prod/Dockerfile.worker.prod/
+# Dockerfile.caddy), Postgres/Redis no publican puertos al host, y hay un servicio "caddy" nuevo
+# que hace de único punto de entrada HTTP/HTTPS (TLS automático + sirve el frontend + reverse
+# proxy al backend). Las variables ${...} salen de un .env sin trackear en el servidor — ver
+# .env.prod.example.
+services:
+  caddy:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/clipshare
+      - SPRING_DATASOURCE_USERNAME=clipshare
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+      - SPRING_REDIS_HOST=redis
+      - STORAGE_MODE=local
+      - STORAGE_LOCAL_PATH=/data/clips
+      - UPLOAD_MAX_FILE_SIZE=300MB
+      - MODERATION_CSAM_PROVIDER=mock
+      - JWT_SECRET=${JWT_SECRET}
+      - APP_TURNSTILE_PROVIDER=mock
+      - TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY}
+      - ANON_SESSION_COOKIE_SECRET=${ANON_SESSION_COOKIE_SECRET}
+      # Mismo dominio para ambos: caddy sirve frontend+API bajo un solo origen (ver Caddyfile).
+      - APP_CORS_ALLOWED_ORIGINS=https://${DOMAIN}
+      - APP_FRONTEND_URL=https://${DOMAIN}
+      - APP_EMAIL_PROVIDER=${APP_EMAIL_PROVIDER:-logging}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - APP_EMAIL_FROM=${APP_EMAIL_FROM:-onboarding@resend.dev}
+    volumes:
+      - clip-storage:/data/clips
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker.prod
+    environment:
+      - SPRING_PROFILES_ACTIVE=worker
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/clipshare
+      - SPRING_DATASOURCE_USERNAME=clipshare
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+      - SPRING_REDIS_HOST=redis
+      - STORAGE_MODE=local
+      - STORAGE_LOCAL_PATH=/data/clips
+      - MODERATION_CSAM_PROVIDER=mock
+    volumes:
+      - clip-storage:/data/clips
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16
+    environment:
+      - POSTGRES_DB=clipshare
+      - POSTGRES_USER=clipshare
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    # Sin "ports": a diferencia de dev, Postgres no necesita ser alcanzable desde el host —
+    # solo backend/worker le hablan, vía la red interna de compose.
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  clip-storage:
+  caddy_data:
+  caddy_config:

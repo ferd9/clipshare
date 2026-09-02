@@ -1,0 +1,31 @@
+## Build de producción del worker: jar ejecutable real, sin bind mounts. Ver docs/DEPLOY.md y
+## Dockerfile.prod (mismo patrón, este agrega curl_cffi como Dockerfile.worker de dev).
+FROM eclipse-temurin:21-jdk AS build
+
+WORKDIR /app
+COPY .mvn/ .mvn
+COPY mvnw pom.xml ./
+RUN chmod +x mvnw && ./mvnw -B dependency:go-offline
+
+COPY src ./src
+RUN ./mvnw -B package -DskipTests
+
+FROM eclipse-temurin:21-jre
+
+# ffmpeg + PDQ hashing (el worker es el único servicio que necesita recodificar video/frames).
+# python3-pip: yt-dlp corre sobre el Python del sistema, hace falta para instalarle curl_cffi.
+RUN sed -i 's|http://archive.ubuntu.com|https://archive.ubuntu.com|g; s|http://security.ubuntu.com|https://security.ubuntu.com|g' /etc/apt/sources.list.d/ubuntu.sources \
+    && apt-get update && apt-get install -y ffmpeg curl python3-pip && rm -rf /var/lib/apt/lists/*
+
+RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
+    && chmod a+rx /usr/local/bin/yt-dlp
+
+# curl_cffi: dependencia opcional de yt-dlp para esquivar protección anti-bot (TikTok) —
+# --break-system-packages porque esta imagen no usa un venv separado (único uso de pip acá).
+RUN pip3 install --break-system-packages --no-cache-dir "curl_cffi>=0.13"
+
+WORKDIR /app
+COPY --from=build /app/target/*.jar app.jar
+
+# Sin EXPOSE: el worker no sirve HTTP, solo consume la cola de Redis (perfil "worker").
+ENTRYPOINT ["java", "-jar", "app.jar"]
